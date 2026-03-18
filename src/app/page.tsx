@@ -1,65 +1,497 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import type {
+  GameState,
+  GameSession,
+  BlockData,
+  ConstellationData,
+  TapResponse,
+  ResolveResponse,
+} from '@/lib/types';
+import { BON_CONFIG } from '@/lib/types';
+import { generateConstellation } from '@/three/systems/ConstellationGenerator';
+import { BlockSync } from '@/three/systems/BlockSync';
+import GateOverlay from '@/components/GateOverlay';
+import HUD from '@/components/HUD';
+import SavePanel from '@/components/SavePanel';
+import LoadingScreen from '@/components/LoadingScreen';
+
+// Three.js Experience component — must be loaded client-side only
+const Experience = dynamic(() => import('@/components/Experience'), {
+  ssr: false,
+  loading: () => null,
+});
+
+// Throttle helper: returns true if enough time has passed since last allowed call
+function createThrottle(ratePerSecond: number) {
+  const minInterval = 1000 / ratePerSecond;
+  let lastTime = 0;
+  return (): boolean => {
+    const now = performance.now();
+    if (now - lastTime >= minInterval) {
+      lastTime = now;
+      return true;
+    }
+    return false;
+  };
+}
+
+export default function HomePage() {
+  // ---------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------
+  const [gameState, setGameState] = useState<GameState>('loading');
+  const [session, setSession] = useState<GameSession | null>(null);
+  const [accuracy, setAccuracy] = useState(0);
+  const [tapCount, setTapCount] = useState(0);
+  const [txCount, setTxCount] = useState(0);
+  const [currentBlock, setCurrentBlock] = useState(0);
+  const [constellationData, setConstellationData] = useState<ConstellationData | null>(
+    null,
+  );
+  const [blockData, setBlockData] = useState<BlockData | null>(null);
+  const [experienceReady, setExperienceReady] = useState(false);
+
+  // Refs for mutable state accessible in callbacks
+  const blockSyncRef = useRef<BlockSync | null>(null);
+  const experienceRef = useRef<{
+    pulse: () => void;
+    registerTap: (accuracy: number) => void;
+    triggerWarp: () => void;
+    showConstellation: (data: ConstellationData) => void;
+    exportPNG: () => void;
+  } | null>(null);
+  const gameStateRef = useRef<GameState>(gameState);
+  const sessionRef = useRef<GameSession | null>(null);
+  const tapThrottleRef = useRef(createThrottle(BON_CONFIG.rateLimit));
+  const roundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const accuracySamples = useRef<number[]>([]);
+
+  // Keep refs in sync
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  // ---------------------------------------------------------------
+  // Initialize BlockSync + transition from loading to gate
+  // ---------------------------------------------------------------
+  useEffect(() => {
+    const blockSync = new BlockSync();
+    blockSyncRef.current = blockSync;
+
+    const init = async () => {
+      await blockSync.initialize();
+      setCurrentBlock(blockSync.getCurrentBlock());
+
+      // Set up beat callback
+      blockSync.setOnBeat(() => {
+        setCurrentBlock(blockSync.getCurrentBlock());
+
+        // During rhythm state, pulse the experience
+        if (gameStateRef.current === 'rhythm' && experienceRef.current) {
+          experienceRef.current.pulse();
+        }
+      });
+    };
+
+    init();
+
+    return () => {
+      blockSync.stop();
+    };
+  }, []);
+
+  // Transition from loading to gate once experience is ready
+  useEffect(() => {
+    if (experienceReady && gameState === 'loading') {
+      // Small delay so the loading screen fade looks smooth
+      const timer = setTimeout(() => setGameState('gate'), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [experienceReady, gameState]);
+
+  // ---------------------------------------------------------------
+  // Experience ready callback
+  // ---------------------------------------------------------------
+  const handleExperienceReady = useCallback(
+    (ref: typeof experienceRef.current) => {
+      experienceRef.current = ref;
+      setExperienceReady(true);
+    },
+    [],
+  );
+
+  // ---------------------------------------------------------------
+  // Gate enter → start round
+  // ---------------------------------------------------------------
+  const handleEnter = useCallback(async () => {
+    setGameState('warp');
+
+    // Trigger warp animation
+    if (experienceRef.current) {
+      experienceRef.current.triggerWarp();
+    }
+
+    try {
+      // Start API session
+      const response = await fetch('/api/start-round', { method: 'POST' });
+      if (response.ok) {
+        const sessionData = await response.json();
+        setSession({
+          sessionId: sessionData.sessionId,
+          txHashes: [],
+          tapCount: 0,
+          accuracy: 0,
+          startedAt: Date.now(),
+        });
+      } else {
+        // If API fails, create a local session
+        setSession({
+          sessionId: `local-${Date.now()}`,
+          txHashes: [],
+          tapCount: 0,
+          accuracy: 0,
+          startedAt: Date.now(),
+        });
+      }
+    } catch {
+      // Offline mode
+      setSession({
+        sessionId: `local-${Date.now()}`,
+        txHashes: [],
+        tapCount: 0,
+        accuracy: 0,
+        startedAt: Date.now(),
+      });
+    }
+
+    // After warp duration, start rhythm
+    setTimeout(() => {
+      setGameState('rhythm');
+      setTapCount(0);
+      setTxCount(0);
+      setAccuracy(0);
+      accuracySamples.current = [];
+
+      // Set round timer
+      roundTimerRef.current = setTimeout(() => {
+        endRound();
+      }, BON_CONFIG.roundDuration);
+    }, 3000); // 3s warp animation
+  }, []);
+
+  // ---------------------------------------------------------------
+  // Tap handler (rhythm phase)
+  // ---------------------------------------------------------------
+  const handleTap = useCallback(async () => {
+    if (gameStateRef.current !== 'rhythm') return;
+    if (!tapThrottleRef.current()) return;
+
+    const currentTapCount = (sessionRef.current?.tapCount ?? 0) + 1;
+    if (currentTapCount > BON_CONFIG.maxTaps) {
+      endRound();
+      return;
+    }
+
+    // Calculate tap accuracy based on proximity to beat
+    const blockSync = blockSyncRef.current;
+    let tapAccuracy = 50; // default if no sync data
+    if (blockSync) {
+      const interval = blockSync.getInterval();
+      const now = performance.now();
+      // How close are we to the nearest beat boundary?
+      const phase = now % interval;
+      const distFromBeat = Math.min(phase, interval - phase);
+      // Accuracy: 100% at beat, 0% at mid-interval
+      tapAccuracy = Math.round(100 * (1 - distFromBeat / (interval / 2)));
+      tapAccuracy = Math.max(0, Math.min(100, tapAccuracy));
+    }
+
+    // Update local state
+    accuracySamples.current.push(tapAccuracy);
+    const avgAccuracy =
+      accuracySamples.current.reduce((a, b) => a + b, 0) /
+      accuracySamples.current.length;
+
+    setTapCount(currentTapCount);
+    setAccuracy(Math.round(avgAccuracy));
+
+    // Register visual feedback
+    if (experienceRef.current) {
+      experienceRef.current.registerTap(tapAccuracy);
+    }
+
+    // Update session
+    setSession((prev) =>
+      prev
+        ? {
+            ...prev,
+            tapCount: currentTapCount,
+            accuracy: Math.round(avgAccuracy),
+          }
+        : prev,
+    );
+
+    // Send tap to API (fire and forget, don't block the UI)
+    try {
+      const response = await fetch('/api/tap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionRef.current?.sessionId,
+          accuracy: tapAccuracy,
+        }),
+      });
+      if (response.ok) {
+        const data: TapResponse = await response.json();
+        if (data.txHash) {
+          setTxCount((prev) => prev + 1);
+          setSession((prev) =>
+            prev
+              ? { ...prev, txHashes: [...prev.txHashes, data.txHash!] }
+              : prev,
+          );
+        }
+      }
+    } catch {
+      // API error — just skip this tap's transaction
+    }
+  }, []);
+
+  // ---------------------------------------------------------------
+  // End round → resolve
+  // ---------------------------------------------------------------
+  const endRound = useCallback(async () => {
+    if (gameStateRef.current !== 'rhythm') return;
+
+    // Clear round timer
+    if (roundTimerRef.current) {
+      clearTimeout(roundTimerRef.current);
+      roundTimerRef.current = null;
+    }
+
+    setGameState('resolving');
+
+    const currentSession = sessionRef.current;
+    const lastTxHash =
+      currentSession?.txHashes[currentSession.txHashes.length - 1] ?? '';
+
+    let blockNonce = blockSyncRef.current?.getCurrentBlock() ?? 0;
+
+    try {
+      const response = await fetch('/api/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: currentSession?.sessionId,
+          txHash: lastTxHash,
+        }),
+      });
+
+      if (response.ok) {
+        const data: ResolveResponse = await response.json();
+        blockNonce = data.blockNonce;
+      }
+    } catch {
+      // Use current block from BlockSync as fallback
+    }
+
+    // Fetch block data for constellation generation
+    try {
+      const blockResponse = await fetch(`/api/block/${blockNonce}`);
+      if (blockResponse.ok) {
+        const fetchedBlockData: BlockData = await blockResponse.json();
+        setBlockData(fetchedBlockData);
+
+        // Generate constellation
+        const constellation = generateConstellation(fetchedBlockData);
+        setConstellationData(constellation);
+
+        // Reveal
+        setGameState('reveal');
+
+        if (experienceRef.current) {
+          experienceRef.current.showConstellation(constellation);
+        }
+
+        // After reveal animation, show save panel
+        setTimeout(() => {
+          setGameState('save');
+        }, 4000); // 4s reveal animation
+      } else {
+        // Fallback: generate with minimal block data
+        handleResolveFallback(blockNonce);
+      }
+    } catch {
+      handleResolveFallback(blockNonce);
+    }
+  }, []);
+
+  const handleResolveFallback = useCallback((blockNonce: number) => {
+    const fallbackBlock: BlockData = {
+      nonce: blockNonce || Math.floor(Date.now() / 600),
+      round: 0,
+      hash: Date.now().toString(16).padStart(64, '0'),
+      proposer: 'a'.repeat(96),
+      timestamp: Math.floor(Date.now() / 1000),
+      txCount: 0,
+      gasConsumed: 0,
+      miniBlocks: [],
+      validators: [
+        { blsKey: 'b'.repeat(96), shard: 0 },
+        { blsKey: 'c'.repeat(96), shard: 1 },
+        { blsKey: 'd'.repeat(96), shard: 2 },
+      ],
+    };
+
+    setBlockData(fallbackBlock);
+    const constellation = generateConstellation(fallbackBlock);
+    setConstellationData(constellation);
+
+    setGameState('reveal');
+
+    if (experienceRef.current) {
+      experienceRef.current.showConstellation(constellation);
+    }
+
+    setTimeout(() => {
+      setGameState('save');
+    }, 4000);
+  }, []);
+
+  // ---------------------------------------------------------------
+  // Export and Play Again
+  // ---------------------------------------------------------------
+  const handleExportPNG = useCallback(() => {
+    if (experienceRef.current) {
+      experienceRef.current.exportPNG();
+    }
+  }, []);
+
+  const handlePlayAgain = useCallback(() => {
+    setGameState('gate');
+    setSession(null);
+    setAccuracy(0);
+    setTapCount(0);
+    setTxCount(0);
+    setConstellationData(null);
+    setBlockData(null);
+    accuracySamples.current = [];
+  }, []);
+
+  // ---------------------------------------------------------------
+  // Global tap/click handler during rhythm phase
+  // ---------------------------------------------------------------
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      // Don't capture taps on save panel buttons
+      const target = e.target as HTMLElement;
+      if (target.closest('.save-panel')) return;
+
+      if (gameStateRef.current === 'rhythm') {
+        handleTap();
+      }
+    };
+
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, [handleTap]);
+
+  // Keyboard support (spacebar tap)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && gameStateRef.current === 'rhythm') {
+        e.preventDefault();
+        handleTap();
+      }
+      if (
+        (e.code === 'Enter' || e.code === 'Space') &&
+        gameStateRef.current === 'gate'
+      ) {
+        e.preventDefault();
+        handleEnter();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleTap, handleEnter]);
+
+  // ---------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+      {/* Three.js canvas — always rendered behind everything */}
+      <div className="canvas-container">
+        <Experience onReady={handleExperienceReady} />
+      </div>
+
+      {/* Loading screen */}
+      <LoadingScreen visible={gameState === 'loading'} />
+
+      {/* Gate overlay */}
+      <GateOverlay
+        visible={gameState === 'gate'}
+        onEnter={handleEnter}
+      />
+
+      {/* HUD — visible during rhythm, resolving, reveal */}
+      <HUD
+        accuracy={accuracy}
+        tapCount={tapCount}
+        txCount={txCount}
+        blockNumber={currentBlock}
+        visible={
+          gameState === 'rhythm' ||
+          gameState === 'resolving' ||
+          gameState === 'reveal'
+        }
+      />
+
+      {/* Save panel — visible after constellation reveal */}
+      {blockData && constellationData && (
+        <SavePanel
+          blockData={blockData}
+          constellationData={constellationData}
+          onExportPNG={handleExportPNG}
+          onPlayAgain={handlePlayAgain}
+          visible={gameState === 'save'}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+      )}
+
+      {/* Resolving indicator */}
+      {gameState === 'resolving' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 15,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <p
+            className="animate-pulse-soft"
+            style={{
+              fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
+              opacity: 0.6,
+              fontFamily: 'var(--font-geist-mono, monospace)',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Resolving block...
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
     </div>
   );
 }
