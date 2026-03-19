@@ -1,14 +1,12 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #000000;
+  --color-background: #050510;
   --color-foreground: #ffffff;
-  --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-  --font-display: var(--font-display);
-  --color-cyan: #00e5ff;
-  --color-purple: #7c3aed;
-  --color-green: #23c483;
+  --color-amber: #e8a849;
+  --color-teal: #4ecdc4;
+  --color-coral: #e06c75;
 }
 
 /* Reset */
@@ -24,21 +22,18 @@ html,
 body {
   height: 100%;
   overflow: hidden;
-  background: #000;
+  background: #050510;
   color: #fff;
-  font-family: var(--font-sans, 'Exo 2', system-ui, -apple-system, sans-serif);
+  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Display font for headings (Orbitron) */
-.font-display {
-  font-family: var(--font-display, 'Orbitron', system-ui, sans-serif);
-}
-
 /* Monospace utility for HUD and technical elements */
 .font-mono {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace);
 }
 
 /* Canvas container — full screen behind everything */
@@ -78,27 +73,19 @@ body {
   cursor: pointer;
 }
 
-/* Gradient text utility */
-.gradient-text {
-  background: linear-gradient(135deg, #ffffff 0%, #00e5ff 45%, #7c3aed 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
 /* Pulse animation for "Enter" prompt */
 @keyframes pulse-soft {
   0%,
   100% {
-    opacity: 0.35;
+    opacity: 0.3;
   }
   50% {
-    opacity: 0.7;
+    opacity: 0.6;
   }
 }
 
 .animate-pulse-soft {
-  animation: pulse-soft 2.5s ease-in-out infinite;
+  animation: pulse-soft 3s ease-in-out infinite;
 }
 
 /* Pulse animation for live dot */

@@ -59,13 +59,29 @@ export default function HUD({
 
   useEffect(() => {
     if (visible) {
-      // Slight delay for fade-in
       const timer = setTimeout(() => setOpacity(1), 100);
       return () => clearTimeout(timer);
     } else {
       setOpacity(0);
     }
   }, [visible]);
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-mono, monospace)',
+    fontSize: '12px',
+    color: 'rgba(255, 255, 255, 0.6)',
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+    userSelect: 'none',
+  };
+
+  const valueStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-mono, monospace)',
+    fontSize: '14px',
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: 500,
+    letterSpacing: '0.5px',
+  };
 
   return (
     <div
@@ -74,61 +90,39 @@ export default function HUD({
         inset: 0,
         opacity,
         transition: 'opacity 0.5s ease',
-        fontFamily: 'var(--font-mono, monospace)',
-        fontSize: '13px',
       }}
     >
-      {/* Top-left: Live block indicator */}
+      {/* Top-left: Block number + Accuracy */}
       <div
         style={{
           position: 'absolute',
-          top: 'clamp(1rem, 3vh, 1.5rem)',
-          left: 'clamp(1rem, 3vw, 1.5rem)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          opacity: 0.6,
+          top: '24px',
+          left: '28px',
         }}
       >
-        <span
-          className="animate-pulse-dot"
-          style={{
-            display: 'inline-block',
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
-            background: '#23c483',
-          }}
-        />
-        <span>
-          LIVE &middot; Block #{formatBlockNumber(blockNumber)}
-        </span>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'baseline', marginBottom: '4px' }}>
+          <span style={labelStyle}>Block</span>
+          <span style={valueStyle}>#{formatBlockNumber(blockNumber)}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+          <span style={labelStyle}>Accuracy</span>
+          <span style={valueStyle}>{Math.round(animatedAccuracy)}%</span>
+        </div>
       </div>
 
-      {/* Top-right: Accuracy */}
+      {/* Top-right: TX count */}
       <div
         style={{
           position: 'absolute',
-          top: 'clamp(1rem, 3vh, 1.5rem)',
-          right: 'clamp(1rem, 3vw, 1.5rem)',
-          opacity: 0.6,
+          top: '24px',
+          right: '28px',
+          textAlign: 'right',
         }}
       >
-        Accuracy: {Math.round(animatedAccuracy)}%
-      </div>
-
-      {/* Bottom-center: TX count */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 'clamp(1rem, 3vh, 2rem)',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          opacity: 0.5,
-          fontSize: '12px',
-        }}
-      >
-        <span>Transactions: {txCount}</span>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'baseline', justifyContent: 'flex-end' }}>
+          <span style={valueStyle}>{txCount.toLocaleString('en-US')}</span>
+          <span style={labelStyle}>Transactions</span>
+        </div>
       </div>
     </div>
   );

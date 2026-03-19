@@ -27,7 +27,7 @@ export default function LoadingScreen({ visible }: LoadingScreenProps) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#000',
+        background: '#050510',
         opacity,
         transition: 'opacity 0.8s ease',
         pointerEvents: visible ? 'auto' : 'none',
@@ -39,22 +39,24 @@ export default function LoadingScreen({ visible }: LoadingScreenProps) {
       <div className="animate-pulse-loading" style={{ textAlign: 'center' }}>
         <h1
           style={{
-            fontSize: 'clamp(3rem, 10vw, 6rem)',
-            fontWeight: 800,
-            letterSpacing: '0.04em',
-            fontFamily: 'var(--font-display, sans-serif)',
+            fontSize: '32px',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            fontFamily: 'var(--font-mono, monospace)',
+            color: 'rgba(255, 255, 255, 0.8)',
+            textTransform: 'uppercase',
           }}
-          className="gradient-text font-display"
         >
-          600ms
+          600MS
         </h1>
         <p
           style={{
             marginTop: '1.5rem',
-            fontSize: 'clamp(0.875rem, 2vw, 1.125rem)',
-            opacity: 0.4,
-            letterSpacing: '0.08em',
+            fontSize: '11px',
+            color: 'rgba(255, 255, 255, 0.4)',
+            letterSpacing: '1px',
             textTransform: 'uppercase',
+            fontFamily: 'var(--font-mono, monospace)',
           }}
         >
           Synchronizing...

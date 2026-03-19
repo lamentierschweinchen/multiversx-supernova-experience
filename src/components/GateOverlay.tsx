@@ -43,46 +43,53 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
         }
       }}
     >
-      {/* Subtle top label */}
+      {/* Top label */}
       <p
         style={{
-          fontSize: 'clamp(0.625rem, 1.2vw, 0.75rem)',
-          letterSpacing: '0.3em',
+          fontSize: '10px',
+          letterSpacing: '2px',
           textTransform: 'uppercase',
-          opacity: 0.4,
-          marginBottom: '2rem',
+          color: 'rgba(255, 255, 255, 0.5)',
+          marginBottom: '1.5rem',
           fontFamily: 'var(--font-mono, monospace)',
+          fontWeight: 400,
         }}
       >
         MultiversX
       </p>
 
-      {/* Main title — Orbitron display font */}
+      {/* Main title — monospace, large, glowing */}
       <h1
-        className="gradient-text font-display"
         style={{
-          fontSize: 'clamp(3rem, 12vw, 8rem)',
-          fontWeight: 900,
-          letterSpacing: '0.04em',
+          fontSize: 'clamp(2.25rem, 8vw, 3rem)',
+          fontWeight: 700,
+          letterSpacing: '0.08em',
           lineHeight: 1,
           textAlign: 'center',
           userSelect: 'none',
+          fontFamily: 'var(--font-mono, monospace)',
+          textTransform: 'uppercase',
+          color: 'rgba(255, 255, 255, 0.9)',
+          textShadow:
+            '0 0 40px rgba(255, 255, 255, 0.15), 0 0 80px rgba(255, 255, 255, 0.05)',
         }}
       >
         SUPERNOVA
       </h1>
 
-      {/* Subtitle — Exo 2 light */}
+      {/* Subtitle */}
       <p
         style={{
           marginTop: '1.5rem',
-          fontSize: 'clamp(0.875rem, 2vw, 1.25rem)',
-          fontWeight: 300,
-          opacity: 0.5,
+          fontSize: '12px',
+          fontWeight: 400,
+          color: 'rgba(255, 255, 255, 0.5)',
           textAlign: 'center',
           maxWidth: '28rem',
-          lineHeight: 1.6,
-          fontFamily: 'var(--font-sans, sans-serif)',
+          lineHeight: 1.8,
+          fontFamily: 'var(--font-mono, monospace)',
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
         }}
       >
         The universe expands. Block by block.
@@ -104,10 +111,12 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
       >
         <p
           style={{
-            fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)',
-            letterSpacing: '0.15em',
+            fontSize: '10px',
+            letterSpacing: '3px',
             textTransform: 'uppercase',
             fontFamily: 'var(--font-mono, monospace)',
+            color: 'rgba(255, 255, 255, 0.4)',
+            fontWeight: 400,
           }}
         >
           Enter
@@ -120,9 +129,10 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
           position: 'absolute',
           bottom: '1rem',
           fontSize: '9px',
-          opacity: 0.18,
-          letterSpacing: '0.1em',
+          color: 'rgba(255, 255, 255, 0.18)',
+          letterSpacing: '0.5px',
           fontFamily: 'var(--font-mono, monospace)',
+          textTransform: 'uppercase',
         }}
       >
         Deployed on the Battle of Nodes shadow fork

@@ -6,3 +6,5 @@ out/
 
 # Audio files (large MP3s — not tracked in git)
 .vercel
+.DS_Store
+music/

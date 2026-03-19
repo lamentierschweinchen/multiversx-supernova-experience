@@ -1,5 +1,6 @@
-// Star particle shaders — cinematic point sprites with soft glow,
-// twinkling, temperature-varied colors, and halo for bright stars
+// Star particle shaders — cinematic point sprites with multi-layer glow,
+// multi-frequency twinkle, diffraction spikes, and temperature-based color.
+// Ported from galaxy-of-nodes visual quality with supernova warp/darken support.
 
 export const starVertexShader = /* glsl */ `
   attribute float aSize;
@@ -9,7 +10,6 @@ export const starVertexShader = /* glsl */ `
 
   varying vec3 vColor;
   varying float vBrightness;
-  varying float vPhase;
   varying float vSize;
 
   uniform float uTime;
@@ -19,9 +19,8 @@ export const starVertexShader = /* glsl */ `
 
   void main() {
     vColor = aColor;
-    vPhase = aPhase;
 
-    // Multi-frequency twinkle for organic feel
+    // Multi-frequency twinkle for organic feel (3 sine waves)
     float twinkle1 = sin(uTime * 1.2 + aPhase * 6.2831);
     float twinkle2 = sin(uTime * 2.7 + aPhase * 3.1415 + 1.3);
     float twinkle3 = sin(uTime * 0.4 + aPhase * 9.42);
@@ -31,11 +30,7 @@ export const starVertexShader = /* glsl */ `
 
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
 
-    // Warp stretch: elongate points along view z when warping
-    float dist = length(mvPosition.xy);
-    float warpStretch = 1.0 + uWarpFactor * 4.0 * (1.0 - smoothstep(0.0, 3.0, dist));
-
-    // Perspective size attenuation
+    // Perspective size attenuation (galaxy-of-nodes formula)
     float perspectiveScale = 300.0 / (-mvPosition.z);
     float finalSize = aSize * uSizeMultiplier * perspectiveScale * (1.0 + uPulseIntensity * 0.3);
 
@@ -52,7 +47,6 @@ export const starVertexShader = /* glsl */ `
 export const starFragmentShader = /* glsl */ `
   varying vec3 vColor;
   varying float vBrightness;
-  varying float vPhase;
   varying float vSize;
 
   uniform float uTime;
@@ -60,7 +54,6 @@ export const starFragmentShader = /* glsl */ `
   uniform float uDarkenFactor; // 0 = normal, 1 = darkened
 
   void main() {
-    // Distance from center of point sprite
     vec2 center = gl_PointCoord - 0.5;
     float dist = length(center);
 
@@ -73,33 +66,32 @@ export const starFragmentShader = /* glsl */ `
                  + tangentDist * tangentDist * (1.0 + uWarpFactor * 2.0));
     }
 
-    // Discard outside circle
     if (dist > 0.5) discard;
 
-    // -- Multi-layer glow for cinematic stars --
+    // -- Multi-layer Gaussian glow (galaxy-of-nodes formula) --
 
-    // Tight hot core
+    // Tight hot core (0.05 radius)
     float coreRadius = 0.05;
     float core = exp(-dist * dist / (coreRadius * coreRadius * 2.0));
 
-    // Inner glow
+    // Inner glow (0.12 radius)
     float innerGlowR = 0.12;
     float innerGlow = exp(-dist * dist / (innerGlowR * innerGlowR * 2.0));
 
-    // Outer soft halo (visible on larger stars)
+    // Outer soft halo (0.35 radius)
     float haloR = 0.35;
     float halo = exp(-dist * dist / (haloR * haloR * 0.3));
 
-    // Diffraction spikes for bright/large stars (subtle cross pattern)
+    // Diffraction spikes for bright/large stars (4-point + diagonal cross)
     float spike = 0.0;
     if (vSize > 4.0 && vBrightness > 0.6) {
       float spikeStrength = smoothstep(4.0, 12.0, vSize) * 0.3;
-      // 4-point diffraction cross
       float ax = abs(center.x);
       float ay = abs(center.y);
+      // Primary cross
       float spike1 = exp(-ay * ay * 800.0) * exp(-ax * 3.0);
       float spike2 = exp(-ax * ax * 800.0) * exp(-ay * 3.0);
-      // Rotated 45-degree spikes (fainter)
+      // 45-degree rotated cross (fainter)
       vec2 rot45 = vec2(center.x + center.y, center.x - center.y) * 0.7071;
       float spike3 = exp(-rot45.y * rot45.y * 1200.0) * exp(-abs(rot45.x) * 4.0) * 0.4;
       float spike4 = exp(-rot45.x * rot45.x * 1200.0) * exp(-abs(rot45.y) * 4.0) * 0.4;
@@ -107,9 +99,9 @@ export const starFragmentShader = /* glsl */ `
     }
 
     // Combine layers
-    float alpha = core * 1.0 + innerGlow * 0.5 + halo * 0.2 + spike;
+    float alpha = core + innerGlow * 0.5 + halo * 0.2 + spike;
 
-    // Color: hot white core fading to the star's temperature color
+    // Temperature-based color gradient: white-hot core -> shard color at edges
     vec3 hotWhite = vec3(1.0, 0.98, 0.95);
     vec3 coreColor = mix(vColor, hotWhite, 0.85);
     vec3 innerColor = mix(vColor, hotWhite, 0.4);
@@ -127,7 +119,7 @@ export const starFragmentShader = /* glsl */ `
     // Apply brightness
     finalColor *= vBrightness;
 
-    // Apply darken (for miss feedback)
+    // Apply darken (for miss feedback) — exponential decay style
     finalColor *= (1.0 - uDarkenFactor * 0.7);
     alpha *= (1.0 - uDarkenFactor * 0.3);
 

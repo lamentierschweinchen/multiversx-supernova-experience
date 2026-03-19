@@ -1,18 +1,6 @@
 import type { Metadata, Viewport } from 'next';
-import { Orbitron, Exo_2, JetBrains_Mono } from 'next/font/google';
+import { JetBrains_Mono } from 'next/font/google';
 import './globals.css';
-
-const orbitron = Orbitron({
-  variable: '--font-display',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800', '900'],
-});
-
-const exo2 = Exo_2({
-  variable: '--font-sans',
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-});
 
 const jetbrainsMono = JetBrains_Mono({
   variable: '--font-mono',
@@ -53,7 +41,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#000000',
+  themeColor: '#050510',
 };
 
 export default function RootLayout({
@@ -62,15 +50,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${orbitron.variable} ${exo2.variable} ${jetbrainsMono.variable}`}
-    >
+    <html lang="en" className={jetbrainsMono.variable}>
       <body
         style={{
           height: '100vh',
           overflow: 'hidden',
-          background: '#000',
+          background: '#050510',
           color: '#fff',
           margin: 0,
         }}

@@ -3,11 +3,10 @@ import { ParticleSystem } from '../systems/ParticleSystem';
 import { nebulaVertexShader, nebulaFragmentShader } from '../shaders/nebula';
 
 // ============================================================
-// GateScene — Cinematic deep-space entry. You float among stars
-// of varying temperatures and sizes. A distant nebula glows.
-// A gravitational vortex at the center pulses with point light
-// and glow sprites. Camera drifts for parallax. On warp, stars
-// leave trails, camera shakes, colors shift to blue-white.
+// GateScene — Cinematic deep-space entry. Galaxy-grade starfield
+// with temperature colors, multi-layer glow, parallax depth.
+// Deep navy background (#050510). Warm vortex glow at center.
+// Warp tunnel with star trails, camera shake, blue-white shift.
 // ============================================================
 
 /** Easing: cubic ease-in */
@@ -25,7 +24,7 @@ export class GateScene {
   private particles: ParticleSystem;
   private camera: THREE.PerspectiveCamera;
 
-  // Vortex core (point light + glow sprite + subtle mesh)
+  // Vortex core (point light + glow sprite + shader mesh)
   private vortexLight: THREE.PointLight;
   private vortexGlow: THREE.Sprite;
   private vortexCoreMesh: THREE.Mesh | null = null;
@@ -41,7 +40,7 @@ export class GateScene {
   // Warp animation state
   private isWarping = false;
   private warpProgress = 0;
-  private warpDuration = 3.5; // seconds
+  private warpDuration = 3.5;
   private warpCallback: (() => void) | null = null;
   private cameraStartZ = 0;
 
@@ -49,7 +48,7 @@ export class GateScene {
   private shakeIntensity = 0;
   private shakeOffset = new THREE.Vector3();
 
-  // Ambient slow rotation of the entire field
+  // Ambient slow rotation
   private fieldRotation = 0;
 
   // Time accumulator
@@ -60,8 +59,8 @@ export class GateScene {
     this.camera = camera;
     this.particles = particles;
 
-    // Vortex point light (replaces flat disc as primary visual)
-    this.vortexLight = new THREE.PointLight(0x4466cc, 5, 80, 1.2);
+    // Warm vortex point light (amber-tinted, not cold blue)
+    this.vortexLight = new THREE.PointLight(0x8899cc, 5, 80, 1.2);
     this.vortexLight.position.set(0, 0, -50);
     this.scene.add(this.vortexLight);
 
@@ -80,7 +79,7 @@ export class GateScene {
     // Arrange stars in depth formation (wide depth range for parallax)
     this.particles.arrangeGateField();
 
-    // Create vortex core shader mesh (gravitational lens effect)
+    // Create vortex core shader mesh
     this.createVortexCore();
 
     // Create subtle ring around the vortex
@@ -89,8 +88,8 @@ export class GateScene {
     // Nebula backdrop
     this.createNebula();
 
-    // Very faint ambient light
-    const ambient = new THREE.AmbientLight(0x080818, 0.3);
+    // Very faint ambient light (galaxy-of-nodes standard)
+    const ambient = new THREE.AmbientLight(0x050510, 0.02);
     this.scene.add(ambient);
 
     // Store camera start position
@@ -104,17 +103,17 @@ export class GateScene {
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
-    // Multi-layer radial gradient for a deep glow
+    // Multi-layer radial gradient — warmer color temperature
     const gradient = ctx.createRadialGradient(
       size / 2, size / 2, 0,
       size / 2, size / 2, size / 2,
     );
-    gradient.addColorStop(0, 'rgba(200, 220, 255, 1.0)');
-    gradient.addColorStop(0.05, 'rgba(150, 180, 255, 0.8)');
-    gradient.addColorStop(0.15, 'rgba(80, 100, 220, 0.4)');
-    gradient.addColorStop(0.4, 'rgba(40, 50, 150, 0.12)');
-    gradient.addColorStop(0.7, 'rgba(20, 20, 80, 0.03)');
-    gradient.addColorStop(1, 'rgba(0, 0, 20, 0)');
+    gradient.addColorStop(0, 'rgba(220, 230, 255, 1.0)');
+    gradient.addColorStop(0.05, 'rgba(180, 200, 255, 0.8)');
+    gradient.addColorStop(0.15, 'rgba(100, 130, 220, 0.4)');
+    gradient.addColorStop(0.4, 'rgba(60, 70, 150, 0.12)');
+    gradient.addColorStop(0.7, 'rgba(30, 25, 80, 0.03)');
+    gradient.addColorStop(1, 'rgba(5, 5, 16, 0)');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
@@ -124,7 +123,7 @@ export class GateScene {
 
     const mat = new THREE.SpriteMaterial({
       map: texture,
-      color: 0x6688dd,
+      color: 0x8899dd,
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -137,7 +136,6 @@ export class GateScene {
   }
 
   private createVortexCore(): void {
-    // Small shader sphere at vortex center — gravitational lens look
     const geo = new THREE.PlaneGeometry(18, 18, 1, 1);
     const mat = new THREE.ShaderMaterial({
       vertexShader: /* glsl */ `
@@ -156,13 +154,13 @@ export class GateScene {
           float dist = length(center);
           float angle = atan(center.y, center.x);
 
-          // Spiral arms (gravitational accretion disc feel)
+          // Spiral arms (gravitational accretion disc)
           float spiral1 = sin(angle * 3.0 - dist * 20.0 + uTime * 1.2) * 0.5 + 0.5;
           float spiral2 = sin(angle * 5.0 + dist * 15.0 - uTime * 0.8) * 0.5 + 0.5;
           float spiral = mix(spiral1, spiral2, 0.4);
           spiral *= smoothstep(0.45, 0.03, dist);
 
-          // Bright core with falloff
+          // Bright core with Gaussian falloff
           float core = exp(-dist * dist * 50.0);
           float innerRing = exp(-pow(dist - 0.08, 2.0) * 300.0) * 0.6;
 
@@ -171,14 +169,17 @@ export class GateScene {
 
           float alpha = (spiral * 0.12 + core * 0.8 + innerRing) * smoothstep(0.5, 0.05, dist) * hole;
 
-          // Color: blue-purple gradient with white-hot core
+          // Warmer color palette: blue-white with warm accents
           vec3 spiralColor = mix(
-            vec3(0.15, 0.25, 0.9),
-            vec3(0.5, 0.2, 0.85),
+            vec3(0.2, 0.3, 0.9),
+            vec3(0.6, 0.35, 0.85),
             spiral
           );
-          vec3 coreColor = vec3(0.9, 0.92, 1.0);
+          vec3 coreColor = vec3(0.95, 0.93, 1.0);
           vec3 color = mix(spiralColor, coreColor, core * 0.7);
+
+          // Subtle warm accent in the spiral arms
+          color += vec3(0.1, 0.05, 0.0) * spiral * smoothstep(0.3, 0.1, dist);
 
           // Subtle pulsation
           alpha *= 0.9 + 0.1 * sin(uTime * 2.0);
@@ -201,10 +202,9 @@ export class GateScene {
   }
 
   private createVortexRing(): void {
-    // Subtle gravitational lensing ring — torus of light
     const geo = new THREE.TorusGeometry(5, 0.15, 8, 64);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x4466aa,
+      color: 0x5577aa,
       transparent: true,
       opacity: 0.08,
       blending: THREE.AdditiveBlending,
@@ -212,7 +212,7 @@ export class GateScene {
     });
     this.vortexRingMesh = new THREE.Mesh(geo, mat);
     this.vortexRingMesh.position.set(0, 0, -50);
-    this.vortexRingMesh.rotation.x = Math.PI * 0.1; // slight tilt
+    this.vortexRingMesh.rotation.x = Math.PI * 0.1;
     this.scene.add(this.vortexRingMesh);
   }
 
@@ -224,7 +224,7 @@ export class GateScene {
       uniforms: {
         uTime: { value: 0 },
         uIntensity: { value: 0.35 },
-        uColor: { value: new THREE.Vector3(0.15, 0.1, 0.35) }, // deep purple-blue
+        uColor: { value: new THREE.Vector3(0.25, 0.12, 0.3) },
         uCenter: { value: new THREE.Vector2(0.55, 0.45) },
         uRadius: { value: 0.8 },
       },
@@ -235,7 +235,7 @@ export class GateScene {
     });
 
     this.nebulaMesh = new THREE.Mesh(geo, mat);
-    this.nebulaMesh.position.set(5, -3, -200); // far behind everything
+    this.nebulaMesh.position.set(5, -3, -200);
     this.scene.add(this.nebulaMesh);
   }
 
@@ -286,12 +286,12 @@ export class GateScene {
   }
 
   private updateIdle(dt: number): void {
-    // Gentle camera drift in a circle — creates parallax with deep starfield
+    // Gentle camera drift — creates parallax with deep starfield
     this.driftAngle += dt * 0.12;
     this.camera.position.x = Math.sin(this.driftAngle) * this.driftRadius;
     this.camera.position.y = Math.cos(this.driftAngle * 0.7) * this.driftRadius * 0.6;
 
-    // Add subtle z-drift for breathing depth
+    // Subtle z-drift for breathing depth
     this.camera.position.z = 5 + Math.sin(this.driftAngle * 0.3) * 0.5;
 
     // Slow field rotation
@@ -319,11 +319,11 @@ export class GateScene {
     const t = this.warpProgress;
 
     // Camera accelerates forward (ease-in cubic)
-    const zTravel = -180; // longer travel distance
+    const zTravel = -180;
     const easedT = easeInCubic(t);
     this.camera.position.z = this.cameraStartZ + zTravel * easedT;
 
-    // Narrow FOV for tunnel feel (60 -> 25 -> snap back)
+    // Narrow FOV for tunnel feel
     const fovT = easeInOutQuart(t);
     this.camera.fov = 60 - 35 * fovT;
     this.camera.updateProjectionMatrix();
@@ -339,7 +339,7 @@ export class GateScene {
     this.fieldRotation += dt * (0.02 + warpFactor * 1.0);
     this.particles.points.rotation.z = this.fieldRotation;
 
-    // Camera shake — builds up then subsides
+    // Camera shake — builds then subsides
     this.shakeIntensity = Math.sin(t * Math.PI) * warpFactor * 0.4;
     this.shakeOffset.set(
       (Math.random() - 0.5) * this.shakeIntensity,
@@ -370,7 +370,7 @@ export class GateScene {
     this.camera.lookAt(0, 0, this.camera.position.z - 20);
   }
 
-  /** Reset scene state (for re-entry or restart) */
+  /** Reset scene state */
   reset(): void {
     this.isWarping = false;
     this.warpProgress = 0;

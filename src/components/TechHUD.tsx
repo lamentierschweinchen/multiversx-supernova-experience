@@ -39,16 +39,19 @@ function getCrossShardPaths(blockData: BlockData): number {
   return count;
 }
 
+// Shard colors from galaxy-of-nodes
+const SHARD_AMBER = '#e8a849';
+const SHARD_TEAL = '#4ecdc4';
+const SHARD_CORAL = '#e06c75';
+
 interface HUDLabel {
   id: string;
   text: string;
   subtext?: string;
   color: string;
   dotColor: string;
-  /** Final position offset from center as vw/vh percentages */
   finalX: string;
   finalY: string;
-  /** Index for stagger delay */
   index: number;
 }
 
@@ -61,7 +64,6 @@ export default function TechHUD({
 
   useEffect(() => {
     if (visible) {
-      // 1.5-second delay before fan-out animation begins
       const timer = setTimeout(() => setShow(true), 1500);
       return () => clearTimeout(timer);
     } else {
@@ -92,8 +94,8 @@ export default function TechHUD({
       id: 'proposer',
       text: 'ORIGIN',
       subtext: truncateHex(blockData.proposer, 8),
-      color: 'rgba(255, 240, 220, 0.8)',
-      dotColor: 'rgba(255, 240, 220, 0.7)',
+      color: SHARD_AMBER,
+      dotColor: SHARD_AMBER,
       finalX: '-36vw',
       finalY: '-5vh',
       index: 1,
@@ -101,8 +103,8 @@ export default function TechHUD({
     {
       id: 'shard0',
       text: `SECTOR 0 \u00B7 ${shard0Count}`,
-      color: 'rgba(0, 229, 255, 0.85)',
-      dotColor: '#00e5ff',
+      color: SHARD_AMBER,
+      dotColor: SHARD_AMBER,
       finalX: '30vw',
       finalY: '-22vh',
       index: 2,
@@ -110,8 +112,8 @@ export default function TechHUD({
     {
       id: 'shard1',
       text: `SECTOR 1 \u00B7 ${shard1Count}`,
-      color: 'rgba(35, 196, 131, 0.85)',
-      dotColor: '#23c483',
+      color: SHARD_TEAL,
+      dotColor: SHARD_TEAL,
       finalX: '36vw',
       finalY: '2vh',
       index: 3,
@@ -119,8 +121,8 @@ export default function TechHUD({
     {
       id: 'shard2',
       text: `SECTOR 2 \u00B7 ${shard2Count}`,
-      color: 'rgba(124, 58, 237, 0.85)',
-      dotColor: '#7c3aed',
+      color: SHARD_CORAL,
+      dotColor: SHARD_CORAL,
       finalX: '30vw',
       finalY: '24vh',
       index: 4,
@@ -128,8 +130,8 @@ export default function TechHUD({
     {
       id: 'crossshard',
       text: `CROSS-SECTOR LINKS: ${crossShardPaths}`,
-      color: 'rgba(130, 160, 230, 0.75)',
-      dotColor: 'rgba(130, 160, 230, 0.7)',
+      color: 'rgba(255, 255, 255, 0.6)',
+      dotColor: 'rgba(255, 255, 255, 0.5)',
       finalX: '0px',
       finalY: '38vh',
       index: 5,
@@ -156,7 +158,6 @@ export default function TechHUD({
             className="hud-fanout-label"
             style={{
               position: 'absolute',
-              // Start at center, animate to final position
               transform: show
                 ? `translate(${label.finalX}, ${label.finalY})`
                 : 'translate(0px, 0px)',
@@ -176,10 +177,10 @@ export default function TechHUD({
                 gap: '6px',
                 fontFamily: 'var(--font-mono, monospace)',
                 fontSize: '10px',
-                letterSpacing: '0.12em',
+                letterSpacing: '1px',
                 textTransform: 'uppercase' as const,
                 color: label.color,
-                textShadow: `0 0 10px ${label.dotColor}44, 0 0 20px ${label.dotColor}22`,
+                textShadow: `0 0 8px ${label.dotColor}40`,
                 whiteSpace: 'nowrap',
               }}
             >
@@ -203,7 +204,7 @@ export default function TechHUD({
                   fontFamily: 'var(--font-mono, monospace)',
                   fontSize: '9px',
                   opacity: 0.55,
-                  letterSpacing: '0.06em',
+                  letterSpacing: '0.5px',
                   color: label.color,
                   textShadow: `0 0 8px ${label.dotColor}22`,
                   paddingLeft: '11px',

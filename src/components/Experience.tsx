@@ -168,7 +168,6 @@ export default function Experience({ onReady }: ExperienceProps) {
               downloadBlob(blob, 'supernova-constellation.png');
             })
             .catch(() => {
-              // Fallback: direct canvas export
               try {
                 const url = i.renderer.domElement.toDataURL('image/png');
                 const link = document.createElement('a');
@@ -199,7 +198,7 @@ export default function Experience({ onReady }: ExperienceProps) {
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        background: '#000',
+        background: '#050510', // deep navy, not pure black
       }}
     />
   );
@@ -243,8 +242,10 @@ function buildInternals(
     powerPreference: tier === 'high' ? 'high-performance' : 'default',
     preserveDrawingBuffer: true,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier === 'high' ? 2 : 1.5));
-  renderer.setClearColor(0x000000, 1);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Deep navy background (#050510) — not pure black
+  renderer.setClearColor(0x050510, 1);
+  // ACES Filmic tone mapping (galaxy-of-nodes standard)
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   container.appendChild(renderer.domElement);
@@ -268,21 +269,21 @@ function buildInternals(
   const rhythmScene = new RhythmScene(camera, particles);
   const revealScene = new RevealScene(camera, particles);
 
-  // ----- Post-processing chain -----
+  // ----- Post-processing chain (galaxy-of-nodes order) -----
   const composer = new EffectComposer(renderer);
 
   // 1. Render pass
   const renderPass = new RenderPass(gateScene.scene, camera);
   composer.addPass(renderPass);
 
-  // 2. Bloom — ethereal glow (tuned for cinematic look)
+  // 2. Bloom — galaxy-of-nodes settings: strength 0.8, radius 0.5, threshold 0.35
   let bloomPass: UnrealBloomPass | null = null;
   if (config.bloomEnabled) {
     bloomPass = new UnrealBloomPass(
       new THREE.Vector2(w, h),
-      tier === 'high' ? 1.5 : tier === 'medium' ? 1.0 : 0.7,   // strength
-      tier === 'high' ? 0.8 : 0.5,                                // radius
-      tier === 'high' ? 0.1 : 0.3,                                // threshold
+      0.8,    // strength (galaxy-of-nodes exact)
+      0.5,    // radius
+      0.35,   // threshold
     );
     composer.addPass(bloomPass);
   }
@@ -304,30 +305,15 @@ function buildInternals(
     composer.addPass(warpPass);
   }
 
-  // 4. Chromatic aberration — subtle optical realism
-  let chromaticAberrationPass: ShaderPass | null = null;
-  if (config.chromaticAberration) {
-    chromaticAberrationPass = new ShaderPass({
-      uniforms: {
-        tDiffuse: { value: null },
-        uIntensity: { value: tier === 'high' ? 2.0 : 1.5 },
-        uResolution: { value: new THREE.Vector2(w, h) },
-      },
-      vertexShader: chromaticAberrationVertexShader,
-      fragmentShader: chromaticAberrationFragmentShader,
-    });
-    composer.addPass(chromaticAberrationPass);
-  }
-
-  // 5. Color grading — Interstellar-inspired blue-purple palette
+  // 4. Color grading — warm cosmic palette (galaxy-of-nodes values)
   let colorGradePass: ShaderPass | null = null;
   if (config.colorGrading) {
     colorGradePass = new ShaderPass({
       uniforms: {
         tDiffuse: { value: null },
-        uIntensity: { value: 0.7 },
-        uExposure: { value: 1.1 },
-        uContrast: { value: 1.08 },
+        uIntensity: { value: 0.6 },
+        uExposure: { value: 1.05 },
+        uContrast: { value: 1.05 },
         uSaturation: { value: 1.1 },
       },
       vertexShader: colorGradeVertexShader,
@@ -336,13 +322,13 @@ function buildInternals(
     composer.addPass(colorGradePass);
   }
 
-  // 6. Vignette — focus the eye to center
+  // 5. Vignette — intensity 0.4, softness 0.3
   let vignettePass: ShaderPass | null = null;
   if (config.vignette) {
     vignettePass = new ShaderPass({
       uniforms: {
         tDiffuse: { value: null },
-        uIntensity: { value: 0.45 },
+        uIntensity: { value: 0.4 },
         uSoftness: { value: 0.3 },
       },
       vertexShader: vignetteVertexShader,
@@ -351,7 +337,7 @@ function buildInternals(
     composer.addPass(vignettePass);
   }
 
-  // 7. Film grain — organic texture (very subtle)
+  // 6. Film grain — intensity 0.5
   let filmGrainPass: ShaderPass | null = null;
   if (config.filmGrain) {
     filmGrainPass = new ShaderPass({
@@ -366,10 +352,23 @@ function buildInternals(
     composer.addPass(filmGrainPass);
   }
 
+  // 7. Chromatic aberration — intensity 1.5, quadratic distance scaling
+  let chromaticAberrationPass: ShaderPass | null = null;
+  if (config.chromaticAberration) {
+    chromaticAberrationPass = new ShaderPass({
+      uniforms: {
+        tDiffuse: { value: null },
+        uIntensity: { value: 1.5 },
+        uResolution: { value: new THREE.Vector2(w, h) },
+      },
+      vertexShader: chromaticAberrationVertexShader,
+      fragmentShader: chromaticAberrationFragmentShader,
+    });
+    composer.addPass(chromaticAberrationPass);
+  }
+
   // ----- State -----
   let sceneState: SceneState = 'gate';
-
-  // Track time for grain
   let grainTime = 0;
 
   // ----- Update -----
@@ -389,15 +388,13 @@ function buildInternals(
         // During warp, increase chromatic aberration
         if (chromaticAberrationPass && sceneState === 'warp') {
           const warpFactor = particles.material.uniforms.uWarpFactor.value;
-          chromaticAberrationPass.uniforms.uIntensity.value = 2.0 + warpFactor * 6.0;
+          chromaticAberrationPass.uniforms.uIntensity.value = 1.5 + warpFactor * 6.0;
         } else if (chromaticAberrationPass && sceneState === 'gate') {
-          // Subtle baseline
-          chromaticAberrationPass.uniforms.uIntensity.value = 2.0;
+          chromaticAberrationPass.uniforms.uIntensity.value = 1.5;
         }
         break;
       case 'rhythm':
         rhythmScene.update(dt);
-        // Restore chromatic aberration to subtle
         if (chromaticAberrationPass) {
           chromaticAberrationPass.uniforms.uIntensity.value = 1.5;
         }

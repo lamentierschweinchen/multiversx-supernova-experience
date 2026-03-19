@@ -160,11 +160,11 @@ export const PERFORMANCE_CONFIG: Record<
   },
 };
 
-/** Shard color constants */
+/** Shard color constants — galaxy-of-nodes palette: amber / teal / coral */
 export const SHARD_COLORS: Record<number, string> = {
-  0: '#00e5ff', // cyan
-  1: '#23c483', // green
-  2: '#7c3aed', // purple
+  0: '#e8a849', // warm amber
+  1: '#4ecdc4', // teal
+  2: '#e06c75', // coral
   4294967295: '#ffffff', // metachain (white)
 };
 

@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { starVertexShader, starFragmentShader } from '../shaders/star';
 
 // ============================================================
-// ParticleSystem — manages a single large BufferGeometry of
-// star particles across all scenes. Supports pulse, scatter,
-// gather, color-shift, warp stretch, ambient drift, and
-// expanding shockwave rings.
+// ParticleSystem — galaxy-grade star particles with temperature-
+// based colors, power-law sizes, multi-layer glow shaders.
+// Supports pulse, scatter, gather, warp stretch, ambient drift,
+// expanding shockwave rings, and burst sub-system.
 // ============================================================
 
 export interface ParticleConfig {
@@ -25,27 +25,19 @@ const DEFAULT_CONFIG: ParticleConfig = {
 };
 
 // Stellar temperature palette — realistic star colors
-// 60% white-blue, 20% warm yellow, 10% orange, 10% deep blue
+// Weighted distribution: 60% white-blue, 20% warm yellow, 10% orange, 10% deep blue
 const STAR_TEMPERATURE_COLORS = [
-  // Hot blue-white (O/B class) — 10%
-  { color: new THREE.Color(0.65, 0.75, 1.0), weight: 10 },
-  // White (A class) — 25%
-  { color: new THREE.Color(0.95, 0.95, 1.0), weight: 25 },
-  // Blue-white (B/A class) — 25%
-  { color: new THREE.Color(0.80, 0.85, 1.0), weight: 25 },
-  // Yellow-white (F class) — 15%
-  { color: new THREE.Color(1.0, 0.95, 0.85), weight: 15 },
-  // Warm yellow (G class, sun-like) — 10%
-  { color: new THREE.Color(1.0, 0.88, 0.65), weight: 10 },
-  // Orange (K class) — 8%
-  { color: new THREE.Color(1.0, 0.72, 0.45), weight: 8 },
-  // Cool red (M class) — 5%
-  { color: new THREE.Color(1.0, 0.55, 0.35), weight: 5 },
-  // Deep blue nebula tint — 2%
-  { color: new THREE.Color(0.45, 0.55, 1.0), weight: 2 },
+  { color: new THREE.Color(0.65, 0.75, 1.0), weight: 10 },  // hot blue-white
+  { color: new THREE.Color(0.95, 0.95, 1.0), weight: 25 },  // white
+  { color: new THREE.Color(0.80, 0.85, 1.0), weight: 25 },  // blue-white
+  { color: new THREE.Color(1.0, 0.95, 0.85), weight: 15 },  // yellow-white
+  { color: new THREE.Color(1.0, 0.88, 0.65), weight: 10 },  // warm yellow
+  { color: new THREE.Color(1.0, 0.72, 0.45), weight: 8 },   // orange
+  { color: new THREE.Color(1.0, 0.55, 0.35), weight: 5 },   // cool red
+  { color: new THREE.Color(0.45, 0.55, 1.0), weight: 2 },   // deep blue
 ];
 
-// Pre-build weighted index for temperature color selection
+// Pre-build weighted palette for O(1) random sampling
 const TEMPERATURE_PALETTE: THREE.Color[] = [];
 for (const entry of STAR_TEMPERATURE_COLORS) {
   for (let i = 0; i < entry.weight; i++) {
@@ -58,11 +50,9 @@ function randomStarColor(): THREE.Color {
   return TEMPERATURE_PALETTE[Math.floor(Math.random() * TEMPERATURE_PALETTE.length)].clone();
 }
 
-/** Power-law distribution for realistic star sizes */
+/** Power-law size distribution — many tiny, few bright (galaxy-of-nodes formula) */
 function powerLawSize(baseSize: number, variation: number): number {
-  // Inverse power law: many small stars, few bright ones
   const u = Math.random();
-  // Pareto-like: most stars cluster at small sizes
   const powerLaw = Math.pow(u, 3.0); // cubic = heavy tail toward small
   return baseSize * 0.3 + powerLaw * variation * 2.5;
 }
@@ -95,7 +85,7 @@ export class ParticleSystem {
   // Ambient drift velocities (zero-g floating effect)
   private velocities: Float32Array;
   private driftEnabled = false;
-  private driftSpeed = 0.15; // base drift speed
+  private driftSpeed = 0.15;
 
   // Shockwave rings
   private shockwaves: ShockwaveRing[] = [];
@@ -118,7 +108,7 @@ export class ParticleSystem {
     this.phases = new Float32Array(this.count);
     this.velocities = new Float32Array(this.count * 3);
 
-    // Initialize with random data
+    // Initialize with temperature-based star distribution
     this.initializeParticles();
 
     // Build geometry
@@ -129,7 +119,7 @@ export class ParticleSystem {
     this.geometry.setAttribute('aBrightness', new THREE.BufferAttribute(this.brightnesses, 1));
     this.geometry.setAttribute('aPhase', new THREE.BufferAttribute(this.phases, 1));
 
-    // Shader material
+    // Galaxy-grade shader material with multi-layer glow
     this.material = new THREE.ShaderMaterial({
       vertexShader: starVertexShader,
       fragmentShader: starFragmentShader,
@@ -149,7 +139,7 @@ export class ParticleSystem {
     this.points.frustumCulled = false;
   }
 
-  /** Initialize particles with realistic star distribution */
+  /** Initialize particles with galaxy-grade star distribution */
   private initializeParticles(): void {
     const { spread, depthRange, baseSize, sizeVariation } = this.config;
 
@@ -172,7 +162,7 @@ export class ParticleSystem {
 
       // Brightness: correlate with size (bigger = brighter on average)
       const sizeNorm = this.sizes[i] / (baseSize + sizeVariation);
-      this.brightnesses[i] = 0.2 + sizeNorm * 0.6 + Math.random() * 0.2;
+      this.brightnesses[i] = 0.35 + sizeNorm * 0.5 + Math.random() * 0.25;
 
       // Phase: random for twinkle offset
       this.phases[i] = Math.random();
@@ -206,7 +196,7 @@ export class ParticleSystem {
       const radius = Math.pow(Math.random(), 0.6) * spread * 0.5;
       target[i3] = Math.cos(angle) * radius;
       target[i3 + 1] = Math.sin(angle) * radius;
-      // Much wider depth range for parallax
+      // Wide depth range for parallax
       target[i3 + 2] = -5 - Math.random() * depthRange * 5;
 
       // Refresh colors with temperature palette
@@ -220,7 +210,7 @@ export class ParticleSystem {
 
       // Brightness correlates with size
       const sizeNorm = this.sizes[i] / (baseSize + sizeVariation);
-      this.brightnesses[i] = 0.2 + sizeNorm * 0.6 + Math.random() * 0.2;
+      this.brightnesses[i] = 0.35 + sizeNorm * 0.5 + Math.random() * 0.25;
     }
 
     this.geometry.getAttribute('aColor').needsUpdate = true;
@@ -242,12 +232,12 @@ export class ParticleSystem {
       const phi = Math.acos(1 - 2 * (i + 0.5) / this.count);
       const theta = Math.PI * (1 + Math.sqrt(5)) * i;
 
-      // Add some randomness to break uniformity + multi-shell depth
-      const shell = 0.7 + Math.random() * 0.6; // multiple shells
+      // Multi-shell depth for parallax
+      const shell = 0.7 + Math.random() * 0.6;
       const r = radius * shell;
       target[i3] = r * Math.sin(phi) * Math.cos(theta);
       target[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      target[i3 + 2] = r * Math.cos(phi) - 10; // offset back
+      target[i3 + 2] = r * Math.cos(phi) - 10;
 
       // Temperature colors for ambient stars
       const color = randomStarColor();
@@ -258,7 +248,11 @@ export class ParticleSystem {
       // Size variety
       this.sizes[i] = powerLawSize(baseSize * 0.8, sizeVariation * 0.6);
 
-      // Randomize drift velocities for this arrangement
+      // Brightness
+      const sizeNorm = this.sizes[i] / (baseSize + sizeVariation);
+      this.brightnesses[i] = 0.35 + sizeNorm * 0.5 + Math.random() * 0.25;
+
+      // Randomize drift velocities
       this.velocities[i3] = (Math.random() - 0.5) * 0.08;
       this.velocities[i3 + 1] = (Math.random() - 0.5) * 0.08;
       this.velocities[i3 + 2] = (Math.random() - 0.5) * 0.04;
@@ -266,6 +260,7 @@ export class ParticleSystem {
 
     this.geometry.getAttribute('aColor').needsUpdate = true;
     this.geometry.getAttribute('aSize').needsUpdate = true;
+    this.geometry.getAttribute('aBrightness').needsUpdate = true;
 
     this.targetPositions = target;
     this.lerpSpeed = 2.0;
@@ -317,7 +312,7 @@ export class ParticleSystem {
       newBrightnesses[i] = 0.1 + Math.random() * 0.3;
     }
 
-    // Update color/size arrays immediately (they don't need lerp)
+    // Update color/size arrays immediately
     this.colors.set(newColors);
     this.sizes.set(newSizes);
     this.brightnesses.set(newBrightnesses);
@@ -378,10 +373,7 @@ export class ParticleSystem {
     this.geometry.getAttribute('aBrightness').needsUpdate = true;
   }
 
-  /**
-   * Emit an expanding shockwave ring from a point.
-   * Stars brighten as the ring passes through them.
-   */
+  /** Emit an expanding shockwave ring from a point */
   emitShockwave(x: number, y: number, z: number, maxRadius: number = 25, speed: number = 15): void {
     this.shockwaves.push({
       cx: x, cy: y, cz: z,
@@ -393,12 +385,14 @@ export class ParticleSystem {
     });
   }
 
-  /** Decay all boosted brightnesses back toward baseline */
+  /** Decay all boosted brightnesses back toward baseline — exponential decay */
   private decayBrightness(dt: number): void {
     let needsUpdate = false;
+    const decayRate = Math.exp(-dt * 2.5); // exponential decay
     for (let i = 0; i < this.count; i++) {
       if (this.brightnesses[i] > 1.0) {
-        this.brightnesses[i] = Math.max(1.0, this.brightnesses[i] - dt * 2.0);
+        this.brightnesses[i] = 1.0 + (this.brightnesses[i] - 1.0) * decayRate;
+        if (this.brightnesses[i] < 1.01) this.brightnesses[i] = 1.0;
         needsUpdate = true;
       }
     }
@@ -415,7 +409,6 @@ export class ParticleSystem {
 
     for (let s = this.shockwaves.length - 1; s >= 0; s--) {
       const sw = this.shockwaves[s];
-      const prevRadius = sw.radius;
       sw.radius += sw.speed * dt;
       sw.life -= dt * (sw.speed / sw.maxRadius);
       sw.intensity = sw.life * sw.life; // quadratic fade
@@ -426,7 +419,7 @@ export class ParticleSystem {
       }
 
       // Brighten stars in the ring band
-      const ringWidth = 2.0 + sw.radius * 0.15; // ring gets wider as it expands
+      const ringWidth = 2.0 + sw.radius * 0.15;
       const innerR = sw.radius - ringWidth * 0.5;
       const outerR = sw.radius + ringWidth * 0.5;
 
@@ -438,7 +431,6 @@ export class ParticleSystem {
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
         if (dist >= innerR && dist <= outerR) {
-          // How centered in the ring band (1.0 at center, 0 at edges)
           const ringPos = 1.0 - Math.abs(dist - sw.radius) / (ringWidth * 0.5);
           const boost = ringPos * sw.intensity * 0.8;
           this.brightnesses[i] = Math.min(this.brightnesses[i] + boost * dt * 10, 2.5);
@@ -463,12 +455,11 @@ export class ParticleSystem {
       this.positions[i3 + 1] += this.velocities[i3 + 1] * speed;
       this.positions[i3 + 2] += this.velocities[i3 + 2] * speed;
     }
-    // Position update is handled by the lerp section or marked manually
   }
 
   /** Main update loop — call each frame */
   update(deltaTime: number): void {
-    const dt = Math.min(deltaTime, 0.1); // cap to prevent jumps
+    const dt = Math.min(deltaTime, 0.1);
 
     // Update time uniform
     this.material.uniforms.uTime.value += dt;
@@ -488,21 +479,26 @@ export class ParticleSystem {
         this.targetPositions = null;
       }
     } else if (this.driftEnabled) {
-      // Only apply drift when not lerping to target
       this.updateDrift(dt);
       this.geometry.getAttribute('position').needsUpdate = true;
     }
 
-    // Decay pulse intensity
+    // Decay pulse intensity — exponential decay
     const pulse = this.material.uniforms.uPulseIntensity.value;
     if (pulse > 0) {
-      this.material.uniforms.uPulseIntensity.value = Math.max(0, pulse - dt * 3.0);
+      this.material.uniforms.uPulseIntensity.value = pulse * Math.exp(-dt * 3.0);
+      if (this.material.uniforms.uPulseIntensity.value < 0.01) {
+        this.material.uniforms.uPulseIntensity.value = 0;
+      }
     }
 
-    // Decay darken factor
+    // Decay darken factor — exponential decay
     const darken = this.material.uniforms.uDarkenFactor.value;
     if (darken > 0) {
-      this.material.uniforms.uDarkenFactor.value = Math.max(0, darken - dt * 5.0);
+      this.material.uniforms.uDarkenFactor.value = darken * Math.exp(-dt * 5.0);
+      if (this.material.uniforms.uDarkenFactor.value < 0.01) {
+        this.material.uniforms.uDarkenFactor.value = 0;
+      }
     }
 
     // Decay brightnesses
@@ -607,10 +603,13 @@ export class ParticleSystem {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.z += p.vz * dt;
-      p.vx *= 0.97;
-      p.vy *= 0.97;
-      p.vz *= 0.97;
-      p.life -= p.decay * dt;
+      // Exponential velocity decay (not linear)
+      const velDecay = Math.exp(-dt * 1.5);
+      p.vx *= velDecay;
+      p.vy *= velDecay;
+      p.vz *= velDecay;
+      // Exponential life decay
+      p.life *= Math.exp(-p.decay * dt);
 
       const i3 = i * 3;
       posArr.array[i3] = p.x;

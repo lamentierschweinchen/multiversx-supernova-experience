@@ -4,30 +4,28 @@ import type { ConstellationData, EdgeData } from '@/lib/types';
 import { nebulaVertexShader, nebulaFragmentShader } from '../shaders/nebula';
 
 // ============================================================
-// RevealScene — Sacred constellation reveal sequence:
-// 1. Cosmos quiets (0-0.5s)
-// 2. Stars ignite one by one with bloom flare (0.5-3s)
-// 3. Lines trace with glowing traveling head (3-5.5s)
-// 4. Nebula glow fills background (4-6s)
-// 5. Camera pulls back then begins slow orbit (5-8s)
-// After: gentle breathing + slow orbit around constellation.
+// RevealScene — Sacred constellation reveal with galaxy-grade
+// star ignition (multi-layer glow, diffraction spikes).
+// Deep navy background (#050510). Warm amber/teal/coral colors
+// with same glow treatment. Slow camera orbit matching galaxy
+// auto-orbit style. Exponential decay for all transients.
 // ============================================================
 
 interface AnimatedStar {
   mesh: THREE.Mesh;
   glow: THREE.Sprite;
-  flare: THREE.Sprite; // ignition flare (temporary bright bloom)
+  flare: THREE.Sprite;
   targetScale: number;
   currentScale: number;
   delay: number;
   color: THREE.Color;
-  ignitionPhase: number; // 0 = not started, 0-1 = igniting, 1 = settled
+  ignitionPhase: number;
   shard: number;
 }
 
 interface AnimatedEdge {
   line: THREE.Line;
-  glowHead: THREE.Sprite; // bright point that travels along the line
+  glowHead: THREE.Sprite;
   progress: number;
   delay: number;
   totalLength: number;
@@ -46,17 +44,15 @@ const lineVertexShader = /* glsl */ `
   void main() {
     float segNorm = aSegmentIndex / uTotalSegments;
 
-    // Head position based on progress
     float headPos = uProgress;
     float dist = abs(segNorm - headPos);
 
-    // Bright head, dimmer trail behind, invisible ahead
-    float ahead = step(headPos, segNorm); // 1 if ahead of head
-    float headGlow = exp(-dist * dist * 200.0); // tight bright spot
-    float trail = (1.0 - ahead) * exp(-dist * 10.0) * 0.6; // trail behind
+    float ahead = step(headPos, segNorm);
+    float headGlow = exp(-dist * dist * 200.0);
+    float trail = (1.0 - ahead) * exp(-dist * 10.0) * 0.6;
 
     vIntensity = headGlow + trail;
-    vIntensity *= step(0.001, uProgress); // invisible until started
+    vIntensity *= step(0.001, uProgress);
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
@@ -69,7 +65,7 @@ const lineFragmentShader = /* glsl */ `
 
   void main() {
     vec3 color = uColor * vIntensity;
-    // Brighten the head to white
+    // White-hot head
     color = mix(color, vec3(1.0, 0.95, 0.9), vIntensity * vIntensity);
     float alpha = vIntensity * uOpacity;
     if (alpha < 0.01) discard;
@@ -77,15 +73,15 @@ const lineFragmentShader = /* glsl */ `
   }
 `;
 
-const VIEW_SCALE = 8; // maps normalized [-1,1] coords to world units
+const VIEW_SCALE = 8;
 
 // Shard z-offsets for parallax depth
 const SHARD_Z_OFFSETS: Record<number, number> = {
   0: 0.8,
   1: -0.5,
   2: 1.2,
-  [-1]: 0, // central/meta
-  4294967295: 0, // metachain
+  [-1]: 0,
+  4294967295: 0,
 };
 
 export class RevealScene {
@@ -107,16 +103,14 @@ export class RevealScene {
   private cameraStartZ = 8;
   private cameraEndZ = 16;
   private orbitAngle = 0;
-  private orbitRadius = 0; // builds up during breathing
+  private orbitRadius = 0;
 
   // Constellation data reference
   private constellationData: ConstellationData | null = null;
 
-  // Glow texture (shared)
+  // Shared textures
   private glowTexture: THREE.Texture;
   private flareTexture: THREE.Texture;
-
-  // Edge glow head texture (shared)
   private headGlowTexture: THREE.Texture;
 
   constructor(camera: THREE.PerspectiveCamera, particles: ParticleSystem) {
@@ -124,20 +118,19 @@ export class RevealScene {
     this.camera = camera;
     this.particles = particles;
 
-    // Shared textures
     this.glowTexture = this.createGlowTexture();
     this.flareTexture = this.createFlareTexture();
     this.headGlowTexture = this.createHeadGlowTexture();
 
-    // Ambient
-    const ambient = new THREE.AmbientLight(0x060612, 0.2);
+    // Deep navy ambient (galaxy-of-nodes standard)
+    const ambient = new THREE.AmbientLight(0x050510, 0.02);
     this.scene.add(ambient);
 
-    // Add particle system (background stars)
+    // Add particle system (background stars with galaxy-grade glow)
     this.scene.add(this.particles.points);
     this.scene.add(this.particles.getBurstPoints());
 
-    // Disable drift for reveal scene (should be still/sacred)
+    // Disable drift for sacred reveal
     this.particles.setDriftEnabled(false);
   }
 
@@ -152,18 +145,13 @@ export class RevealScene {
       VIEW_SCALE,
     );
 
-    // Create animated star meshes
     this.createStars(data);
-
-    // Create animated edge lines
     this.createEdges(data);
 
-    // Create nebula
     if (data.nebula) {
       this.createNebula(data);
     }
 
-    // Reset animation state
     this.elapsed = 0;
     this.isAnimating = true;
     this.isBreathing = false;
@@ -171,7 +159,6 @@ export class RevealScene {
     this.orbitAngle = 0;
     this.orbitRadius = 0;
 
-    // Camera setup
     this.camera.position.set(0, 0, this.cameraStartZ);
     this.camera.lookAt(0, 0, 0);
   }
@@ -179,15 +166,13 @@ export class RevealScene {
   private createStars(data: ConstellationData): void {
     const starGeo = new THREE.SphereGeometry(0.12, 16, 16);
 
-    // Central star first
     if (data.centralStar) {
       this.addStar(data.centralStar, starGeo, 0.5);
     }
 
-    // Validator stars with staggered delay
     data.stars.forEach((star, i) => {
       if (star.isCentral) return;
-      const delay = 0.8 + (i / data.stars.length) * 2.2; // 0.8-3s window
+      const delay = 0.8 + (i / data.stars.length) * 2.2;
       this.addStar(star, starGeo, delay);
     });
   }
@@ -198,7 +183,6 @@ export class RevealScene {
     delay: number,
   ): void {
     const color = new THREE.Color(star.color);
-    // Apply z-offset based on shard for parallax depth
     const zOffset = SHARD_Z_OFFSETS[star.shard] ?? (star.shard * 0.3 - 0.5);
     const position = new THREE.Vector3(
       star.x * VIEW_SCALE,
@@ -206,7 +190,7 @@ export class RevealScene {
       zOffset,
     );
 
-    // Star mesh
+    // Star mesh — galaxy-grade emissive material
     const mat = new THREE.MeshStandardMaterial({
       color: color,
       emissive: color,
@@ -217,17 +201,17 @@ export class RevealScene {
 
     const mesh = new THREE.Mesh(sharedGeo, mat);
     mesh.position.copy(position);
-    mesh.scale.setScalar(0); // starts invisible
+    mesh.scale.setScalar(0);
     this.scene.add(mesh);
 
-    // Add a point light for central star
+    // Point light for central star (warm)
     if (star.isCentral) {
       const light = new THREE.PointLight(color, 5, 25, 1.5);
       light.position.copy(position);
       this.scene.add(light);
     }
 
-    // Steady glow sprite
+    // Steady glow sprite (multi-layer glow effect via texture)
     const glowMat = new THREE.SpriteMaterial({
       map: this.glowTexture,
       color: color,
@@ -242,7 +226,7 @@ export class RevealScene {
     glow.position.copy(position);
     this.scene.add(glow);
 
-    // Ignition flare sprite (large, bright, temporary)
+    // Ignition flare sprite (temporary bright bloom with diffraction cross)
     const flareMat = new THREE.SpriteMaterial({
       map: this.flareTexture,
       color: new THREE.Color(1, 1, 1),
@@ -326,7 +310,6 @@ export class RevealScene {
       const line = new THREE.Line(geo, mat);
       this.scene.add(line);
 
-      // Glow head sprite
       const headMat = new THREE.SpriteMaterial({
         map: this.headGlowTexture,
         color: 0xaaccff,
@@ -379,7 +362,7 @@ export class RevealScene {
     });
 
     this.nebulaMesh = new THREE.Mesh(geo, mat);
-    this.nebulaMesh.position.set(0, 0, -4); // behind constellation
+    this.nebulaMesh.position.set(0, 0, -4);
     this.scene.add(this.nebulaMesh);
   }
 
@@ -390,14 +373,16 @@ export class RevealScene {
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
 
+    // Multi-layer glow matching galaxy-of-nodes star halo
     const gradient = ctx.createRadialGradient(
       size / 2, size / 2, 0,
       size / 2, size / 2, size / 2,
     );
     gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-    gradient.addColorStop(0.12, 'rgba(200, 220, 255, 0.6)');
-    gradient.addColorStop(0.35, 'rgba(100, 130, 255, 0.2)');
-    gradient.addColorStop(1, 'rgba(0, 0, 30, 0)');
+    gradient.addColorStop(0.08, 'rgba(255, 250, 242, 0.8)');
+    gradient.addColorStop(0.2, 'rgba(200, 220, 255, 0.5)');
+    gradient.addColorStop(0.4, 'rgba(100, 130, 255, 0.15)');
+    gradient.addColorStop(1, 'rgba(5, 5, 16, 0)');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
@@ -407,7 +392,7 @@ export class RevealScene {
     return texture;
   }
 
-  /** Ignition flare texture — larger, with subtle cross/spike pattern */
+  /** Ignition flare texture with cross spikes (diffraction) */
   private createFlareTexture(): THREE.Texture {
     const size = 256;
     const canvas = document.createElement('canvas');
@@ -418,18 +403,18 @@ export class RevealScene {
     const cx = size / 2;
     const cy = size / 2;
 
-    // Base radial glow
+    // Base radial glow (Gaussian-like)
     const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, size / 2);
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-    gradient.addColorStop(0.05, 'rgba(220, 235, 255, 0.9)');
+    gradient.addColorStop(0, 'rgba(255, 253, 245, 1.0)');
+    gradient.addColorStop(0.05, 'rgba(240, 245, 255, 0.9)');
     gradient.addColorStop(0.15, 'rgba(150, 180, 255, 0.4)');
     gradient.addColorStop(0.4, 'rgba(80, 100, 200, 0.1)');
-    gradient.addColorStop(1, 'rgba(0, 0, 20, 0)');
+    gradient.addColorStop(1, 'rgba(5, 5, 16, 0)');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
 
-    // Add subtle cross spikes
+    // 4-point diffraction cross spikes
     ctx.globalCompositeOperation = 'lighter';
     for (let angle = 0; angle < 4; angle++) {
       const a = (angle * Math.PI) / 2;
@@ -437,9 +422,9 @@ export class RevealScene {
         cx, cy,
         cx + Math.cos(a) * size / 2, cy + Math.sin(a) * size / 2,
       );
-      spikeGrad.addColorStop(0, 'rgba(200, 220, 255, 0.4)');
-      spikeGrad.addColorStop(0.3, 'rgba(100, 130, 200, 0.1)');
-      spikeGrad.addColorStop(1, 'rgba(0, 0, 20, 0)');
+      spikeGrad.addColorStop(0, 'rgba(220, 230, 255, 0.5)');
+      spikeGrad.addColorStop(0.3, 'rgba(100, 130, 200, 0.12)');
+      spikeGrad.addColorStop(1, 'rgba(5, 5, 16, 0)');
 
       ctx.strokeStyle = spikeGrad;
       ctx.lineWidth = 3;
@@ -449,12 +434,30 @@ export class RevealScene {
       ctx.stroke();
     }
 
+    // 45-degree rotated spikes (fainter)
+    for (let angle = 0; angle < 4; angle++) {
+      const a = (angle * Math.PI) / 2 + Math.PI / 4;
+      const spikeGrad = ctx.createLinearGradient(
+        cx, cy,
+        cx + Math.cos(a) * size / 3, cy + Math.sin(a) * size / 3,
+      );
+      spikeGrad.addColorStop(0, 'rgba(180, 200, 255, 0.25)');
+      spikeGrad.addColorStop(0.4, 'rgba(80, 100, 180, 0.06)');
+      spikeGrad.addColorStop(1, 'rgba(5, 5, 16, 0)');
+
+      ctx.strokeStyle = spikeGrad;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a) * size / 3, cy + Math.sin(a) * size / 3);
+      ctx.stroke();
+    }
+
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
     return texture;
   }
 
-  /** Small bright glow for line trace head */
   private createHeadGlowTexture(): THREE.Texture {
     const size = 64;
     const canvas = document.createElement('canvas');
@@ -466,10 +469,10 @@ export class RevealScene {
       size / 2, size / 2, 0,
       size / 2, size / 2, size / 2,
     );
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+    gradient.addColorStop(0, 'rgba(255, 253, 245, 1.0)');
     gradient.addColorStop(0.2, 'rgba(180, 200, 255, 0.7)');
     gradient.addColorStop(0.5, 'rgba(80, 100, 200, 0.2)');
-    gradient.addColorStop(1, 'rgba(0, 0, 30, 0)');
+    gradient.addColorStop(1, 'rgba(5, 5, 16, 0)');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
@@ -486,7 +489,6 @@ export class RevealScene {
       this.elapsed += clampedDt;
       this.updateAnimation(clampedDt);
 
-      // Animation complete at ~8s
       if (this.elapsed > 8.0) {
         this.isAnimating = false;
         this.isBreathing = true;
@@ -497,7 +499,6 @@ export class RevealScene {
       this.updateBreathing(clampedDt);
     }
 
-    // Update nebula time
     if (this.nebulaMesh) {
       const mat = this.nebulaMesh.material as THREE.ShaderMaterial;
       mat.uniforms.uTime.value += clampedDt;
@@ -507,27 +508,25 @@ export class RevealScene {
   private updateAnimation(dt: number): void {
     const t = this.elapsed;
 
-    // Phase 1: Stars ignite
+    // Phase 1: Stars ignite with galaxy-grade multi-layer glow
     for (const star of this.animatedStars) {
       const localT = Math.max(0, t - star.delay);
       if (localT <= 0) continue;
 
-      // Ignition over 0.4s: dim -> FLARE -> settle
       const ignitionDuration = 0.4;
       const settleStart = ignitionDuration;
       const settleDuration = 0.5;
 
       if (localT < ignitionDuration) {
-        // Rapid scale-up + flare
         const progress = localT / ignitionDuration;
         star.ignitionPhase = progress;
 
-        // Overshoot scale (goes to 1.5x target then settles)
+        // Overshoot scale (galaxy-grade ignition bloom)
         const overshoot = 1.0 + 0.8 * Math.sin(progress * Math.PI);
         star.currentScale = star.targetScale * progress * overshoot;
         star.mesh.scale.setScalar(star.currentScale);
 
-        // Flare is brightest at peak
+        // Flare brightest at peak
         const flareBrightness = Math.sin(progress * Math.PI);
         (star.flare.material as THREE.SpriteMaterial).opacity = flareBrightness * 0.9;
 
@@ -539,14 +538,14 @@ export class RevealScene {
         meshMat.emissiveIntensity = 1.5 + flareBrightness * 4.0;
 
       } else if (localT < settleStart + settleDuration) {
-        // Settle to final state
+        // Settle to final state — exponential ease
         const settleProgress = (localT - settleStart) / settleDuration;
-        const eased = 1 - Math.pow(1 - settleProgress, 3);
+        const eased = 1 - Math.exp(-settleProgress * 3); // exponential settle
 
         star.currentScale = star.targetScale * (1.0 + (1.0 - eased) * 0.3);
         star.mesh.scale.setScalar(star.currentScale);
 
-        // Flare fades out
+        // Flare exponentially fades out
         (star.flare.material as THREE.SpriteMaterial).opacity = (1 - eased) * 0.3;
 
         // Glow reaches final
@@ -574,20 +573,19 @@ export class RevealScene {
       const drawDuration = 1.0;
       edge.progress = Math.min(localT / drawDuration, 1.0);
 
-      // Update shader progress
       const mat = edge.line.material as THREE.ShaderMaterial;
       mat.uniforms.uProgress.value = edge.progress;
 
-      // Move glow head along the line
       if (edge.progress > 0 && edge.progress < 1.0) {
         const headPos = edge.fromPos.clone().lerp(edge.toPos, edge.progress);
         edge.glowHead.position.copy(headPos);
         (edge.glowHead.material as THREE.SpriteMaterial).opacity = 0.9;
         edge.glowHead.scale.setScalar(1.2);
       } else if (edge.progress >= 1.0) {
-        // Line fully drawn, head fades
-        (edge.glowHead.material as THREE.SpriteMaterial).opacity *= 0.9;
-        edge.glowHead.scale.multiplyScalar(0.95);
+        // Exponential fade for head
+        const currentOp = (edge.glowHead.material as THREE.SpriteMaterial).opacity;
+        (edge.glowHead.material as THREE.SpriteMaterial).opacity = currentOp * Math.exp(-dt * 5);
+        edge.glowHead.scale.multiplyScalar(Math.exp(-dt * 2));
       }
     }
 
@@ -599,10 +597,10 @@ export class RevealScene {
       mat.uniforms.uIntensity.value = targetIntensity * nebulaT;
     }
 
-    // Phase 4: Camera pulls back (5-8s)
+    // Phase 4: Camera pulls back (5-8s) with galaxy-grade smooth ease
     if (t > 5.0) {
       const camT = Math.min((t - 5.0) / 3.0, 1.0);
-      const eased = 1 - Math.pow(1 - camT, 2);
+      const eased = 1 - Math.exp(-camT * 2.5); // exponential ease
       this.camera.position.z = this.cameraStartZ + (this.cameraEndZ - this.cameraStartZ) * eased;
       this.camera.lookAt(0, 0, 0);
     }
@@ -617,23 +615,20 @@ export class RevealScene {
       const localBreath = 1.0 + Math.sin(this.breathPhase + phaseOffset) * 0.04;
       star.mesh.scale.setScalar(star.targetScale * localBreath);
 
-      // Glow breathes too
       const baseGlowScale = star.mesh.position.distanceTo(new THREE.Vector3()) < 2 ? 4.0 : 1.5 + star.targetScale * 4;
       star.glow.scale.setScalar(baseGlowScale * (1 + (localBreath - 1) * 0.5));
     }
 
-    // Slow camera orbit (about 1 degree per second)
-    this.orbitAngle += dt * 0.018; // ~1 deg/s
-    this.orbitRadius = Math.min(this.orbitRadius + dt * 0.3, 2.5); // gradually widens
+    // Slow camera orbit — galaxy auto-orbit style (~1 deg/s)
+    this.orbitAngle += dt * 0.018;
+    this.orbitRadius = Math.min(this.orbitRadius + dt * 0.3, 2.5);
 
-    const camZ = this.cameraEndZ * Math.cos(this.orbitAngle * 0.3);
     this.camera.position.x = Math.sin(this.orbitAngle) * this.orbitRadius;
     this.camera.position.y = Math.cos(this.breathPhase * 0.15) * 0.3;
     this.camera.position.z = this.cameraEndZ + Math.sin(this.orbitAngle * 0.5) * 0.5;
     this.camera.lookAt(0, 0, 0);
   }
 
-  /** Clean up animated objects (but not the scene itself) */
   private cleanup(): void {
     for (const star of this.animatedStars) {
       this.scene.remove(star.mesh);

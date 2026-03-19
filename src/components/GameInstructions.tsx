@@ -13,7 +13,6 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      // Fade in after mount
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setOpacity(1);
@@ -51,14 +50,14 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
     >
       <p
         style={{
-          fontSize: '14px',
+          fontSize: '12px',
           fontWeight: 500,
-          letterSpacing: '0.15em',
+          letterSpacing: '2px',
           textTransform: 'uppercase',
-          color: 'rgba(255, 255, 255, 0.7)',
+          color: 'rgba(255, 255, 255, 0.5)',
           fontFamily: 'var(--font-mono, monospace)',
           textAlign: 'center',
-          textShadow: '0 0 20px rgba(0, 229, 255, 0.5)',
+          textShadow: '0 0 20px rgba(255, 255, 255, 0.1)',
           margin: 0,
         }}
       >
