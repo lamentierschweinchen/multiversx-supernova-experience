@@ -73,7 +73,11 @@ body {
   cursor: pointer;
 }
 
-/* Pulse animation for "Enter" prompt */
+/*
+  pulse-soft: generic gentle pulse for elements with base opacity >= 0.6.
+  Cycles 0.3–0.6. Only use where the base element is at full opacity —
+  the element's own opacity multiplies with this animation.
+*/
 @keyframes pulse-soft {
   0%,
   100% {
@@ -86,6 +90,24 @@ body {
 
 .animate-pulse-soft {
   animation: pulse-soft 3s ease-in-out infinite;
+}
+
+/*
+  pulse-enter: dedicated animation for the "Enter" prompt on the gate overlay.
+  Cycles between 0.5 and 0.8 so it stays comfortably readable at all times.
+*/
+@keyframes pulse-enter {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-enter {
+  animation: pulse-enter 3s ease-in-out infinite;
 }
 
 /* Pulse animation for live dot */

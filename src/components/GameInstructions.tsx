@@ -54,10 +54,10 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
           fontWeight: 500,
           letterSpacing: '2px',
           textTransform: 'uppercase',
-          color: 'rgba(255, 255, 255, 0.5)',
+          color: 'rgba(255, 255, 255, 0.6)',
           fontFamily: 'var(--font-mono, monospace)',
           textAlign: 'center',
-          textShadow: '0 0 20px rgba(255, 255, 255, 0.1)',
+          textShadow: '0 0 12px rgba(0,0,0,0.8), 0 0 24px rgba(0,0,0,0.5)',
           margin: 0,
         }}
       >

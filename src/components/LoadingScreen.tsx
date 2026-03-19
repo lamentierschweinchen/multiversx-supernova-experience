@@ -53,7 +53,7 @@ export default function LoadingScreen({ visible }: LoadingScreenProps) {
           style={{
             marginTop: '1.5rem',
             fontSize: '11px',
-            color: 'rgba(255, 255, 255, 0.4)',
+            color: 'rgba(255, 255, 255, 0.5)',
             letterSpacing: '1px',
             textTransform: 'uppercase',
             fontFamily: 'var(--font-mono, monospace)',

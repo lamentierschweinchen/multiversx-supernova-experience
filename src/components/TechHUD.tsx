@@ -62,16 +62,28 @@ export default function TechHUD({
   constellationData,
   visible,
 }: TechHUDProps) {
-  const [show, setShow] = useState(false);
+  // expanded controls whether the fan-out labels are shown
+  const [expanded, setExpanded] = useState(false);
+  // fanout controls the animated expansion (separate so we can delay)
+  const [fanout, setFanout] = useState(false);
 
+  // Reset when hidden
   useEffect(() => {
-    if (visible) {
-      const timer = setTimeout(() => setShow(true), 1500);
-      return () => clearTimeout(timer);
-    } else {
-      setShow(false);
+    if (!visible) {
+      setExpanded(false);
+      setFanout(false);
     }
   }, [visible]);
+
+  // When expanded changes, drive fanout with a micro-delay so CSS transition triggers
+  useEffect(() => {
+    if (expanded) {
+      const timer = setTimeout(() => setFanout(true), 30);
+      return () => clearTimeout(timer);
+    } else {
+      setFanout(false);
+    }
+  }, [expanded]);
 
   if (!visible || !blockData) return null;
 
@@ -101,7 +113,7 @@ export default function TechHUD({
       id: 'blockinfo',
       title: `BLOCK #${blockData.nonce.toLocaleString('en-US')}`,
       data: `hash: ${hashDisplay}`,
-      explain: 'the moment in time that seeded this constellation',
+      explain: `this moment in the network's history seeded your unique constellation`,
       color: 'rgba(255, 255, 255, 0.85)',
       dotColor: 'rgba(255, 255, 255, 0.7)',
       finalX: '0px',
@@ -110,53 +122,53 @@ export default function TechHUD({
     },
     {
       id: 'proposer',
-      title: 'ORIGIN',
+      title: 'ORIGIN — BLOCK PROPOSER',
       data: `bls: ${proposerDisplay}`,
-      explain: 'the validator that led consensus — your central star',
+      explain: `the validator that led consensus for this block — your central star`,
       color: 'rgba(255, 255, 255, 0.85)',
       dotColor: 'rgba(255, 255, 255, 0.7)',
-      finalX: '-36vw',
+      finalX: 'clamp(-160px, -36vw, -80px)',
       finalY: '-5vh',
       index: 1,
     },
     {
       id: 'shard0',
-      title: 'SECTOR 0',
-      data: `${shard0Count} validators`,
-      explain: "each star's position is unique to this block",
+      title: 'SECTOR 0 — NETWORK SHARD',
+      data: `${shard0Count} validators in this partition`,
+      explain: `the network splits into parallel lanes — each processes transactions independently`,
       color: SHARD_AMBER,
       dotColor: SHARD_AMBER,
-      finalX: '30vw',
+      finalX: 'clamp(80px, 30vw, 160px)',
       finalY: '-22vh',
       index: 2,
     },
     {
       id: 'shard1',
-      title: 'SECTOR 1',
-      data: `${shard1Count} validators`,
-      explain: 'grouped by network shard, colored by sector',
+      title: 'SECTOR 1 — NETWORK SHARD',
+      data: `${shard1Count} validators in this partition`,
+      explain: `stars are grouped and colored by which shard their validator operates in`,
       color: SHARD_TEAL,
       dotColor: SHARD_TEAL,
-      finalX: '36vw',
+      finalX: 'clamp(80px, 36vw, 160px)',
       finalY: '2vh',
       index: 3,
     },
     {
       id: 'shard2',
-      title: 'SECTOR 2',
-      data: `${shard2Count} validators`,
-      explain: 'the same validator shifts position every block',
+      title: 'SECTOR 2 — NETWORK SHARD',
+      data: `${shard2Count} validators in this partition`,
+      explain: `each validator's position shifts every block — no two constellations are alike`,
       color: SHARD_CORAL,
       dotColor: SHARD_CORAL,
-      finalX: '30vw',
+      finalX: 'clamp(80px, 30vw, 160px)',
       finalY: '24vh',
       index: 4,
     },
     {
       id: 'crossshard',
       title: 'CROSS-SECTOR LINKS',
-      data: `${crossShardPaths} paths \u00B7 ${totalTxCount} txs \u00B7 ${gasFormatted} fuel`,
-      explain: "data routing between shards — the constellation's connecting lines",
+      data: `${crossShardPaths} paths \u00B7 ${totalTxCount} transactions \u00B7 ${gasFormatted} fuel`,
+      explain: `when data routes between shards, it traces the lines connecting your stars`,
       color: SOFT_BLUE,
       dotColor: SOFT_BLUE,
       finalX: '0px',
@@ -167,6 +179,7 @@ export default function TechHUD({
 
   return (
     <div
+      className="tech-hud"
       style={{
         position: 'fixed',
         inset: 0,
@@ -177,7 +190,8 @@ export default function TechHUD({
         justifyContent: 'center',
       }}
     >
-      {labels.map((label) => {
+      {/* Fan-out labels — only rendered when expanded */}
+      {expanded && labels.map((label) => {
         const delay = label.index * 0.1;
         const explainDelay = delay + 0.3;
         return (
@@ -186,16 +200,17 @@ export default function TechHUD({
             className="hud-fanout-label"
             style={{
               position: 'absolute',
-              transform: show
+              transform: fanout
                 ? `translate(${label.finalX}, ${label.finalY})`
                 : 'translate(0px, 0px)',
-              opacity: show ? 1 : 0,
+              opacity: fanout ? 1 : 0,
               transition: `transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '3px',
               willChange: 'transform, opacity',
+              maxWidth: 'calc(50vw - 20px)',
             }}
           >
             {/* Title line — 11px, opacity 0.8 */}
@@ -210,8 +225,7 @@ export default function TechHUD({
                 textTransform: 'uppercase' as const,
                 color: label.color,
                 opacity: 0.8,
-                textShadow: `0 0 8px ${label.dotColor}40`,
-                whiteSpace: 'nowrap',
+                textShadow: `0 0 8px ${label.dotColor}40, 0 0 12px rgba(0,0,0,0.9), 0 0 24px rgba(0,0,0,0.6)`,
               }}
             >
               {/* Colored dot pip */}
@@ -226,7 +240,7 @@ export default function TechHUD({
                   flexShrink: 0,
                 }}
               />
-              <span>{label.title}</span>
+              <span style={{ whiteSpace: 'nowrap' }}>{label.title}</span>
             </div>
 
             {/* Data line — 10px, opacity 0.6 */}
@@ -237,7 +251,7 @@ export default function TechHUD({
                 letterSpacing: '0.5px',
                 color: label.color,
                 opacity: 0.6,
-                textShadow: `0 0 8px ${label.dotColor}22`,
+                textShadow: `0 0 8px ${label.dotColor}22, 0 0 12px rgba(0,0,0,0.8)`,
                 whiteSpace: 'nowrap',
                 paddingLeft: '11px',
               }}
@@ -245,7 +259,7 @@ export default function TechHUD({
               {label.data}
             </div>
 
-            {/* Explain line — 9px, opacity 0.35, staggered +0.3s */}
+            {/* Explain line — 9px, opacity 0.35, staggered +0.3s, wrapping allowed */}
             <div
               style={{
                 fontFamily: 'var(--font-mono, monospace)',
@@ -256,9 +270,10 @@ export default function TechHUD({
                 textAlign: 'center',
                 lineHeight: 1.4,
                 paddingLeft: '11px',
-                opacity: show ? 0.35 : 0,
+                opacity: fanout ? 0.35 : 0,
                 transition: `opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${explainDelay}s`,
                 willChange: 'opacity',
+                textShadow: '0 0 10px rgba(0,0,0,0.9)',
               }}
             >
               {label.explain}
@@ -266,6 +281,83 @@ export default function TechHUD({
           </div>
         );
       })}
+
+      {/* Toggle button — always visible when TechHUD is shown */}
+      {/* Positioned bottom-right above save bar (bottom: 56px) */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '56px',
+          right: '16px',
+          pointerEvents: 'auto',
+          zIndex: 26,
+          display: 'flex',
+          gap: '6px',
+        }}
+      >
+        {expanded && (
+          <button
+            onClick={() => setExpanded(false)}
+            style={{
+              height: '26px',
+              padding: '0 12px',
+              borderRadius: '13px',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              background: 'rgba(5, 5, 16, 0.7)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontSize: '10px',
+              fontFamily: 'var(--font-mono, monospace)',
+              letterSpacing: '1px',
+              textTransform: 'uppercase' as const,
+              cursor: 'pointer',
+              transition: 'border-color 0.2s, color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
+            }}
+          >
+            Close
+          </button>
+        )}
+        {!expanded && (
+          <button
+            onClick={() => setExpanded(true)}
+            style={{
+              height: '26px',
+              padding: '0 12px',
+              borderRadius: '13px',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              background: 'rgba(5, 5, 16, 0.7)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontSize: '10px',
+              fontFamily: 'var(--font-mono, monospace)',
+              letterSpacing: '1px',
+              textTransform: 'uppercase' as const,
+              cursor: 'pointer',
+              transition: 'border-color 0.2s, color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
+            }}
+          >
+            Explain this
+          </button>
+        )}
+      </div>
     </div>
   );
 }

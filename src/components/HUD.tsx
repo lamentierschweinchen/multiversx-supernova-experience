@@ -47,6 +47,9 @@ function useAnimatedNumber(target: number, duration: number = 300): number {
   return display;
 }
 
+// Dark halo for text rendered over the canvas
+const textShadow = '0 0 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)';
+
 export default function HUD({
   accuracy,
   tapCount,
@@ -73,6 +76,7 @@ export default function HUD({
     letterSpacing: '0.5px',
     textTransform: 'uppercase',
     userSelect: 'none',
+    textShadow,
   };
 
   const valueStyle: React.CSSProperties = {
@@ -81,6 +85,7 @@ export default function HUD({
     color: 'rgba(255, 255, 255, 0.85)',
     fontWeight: 500,
     letterSpacing: '0.5px',
+    textShadow,
   };
 
   return (
@@ -96,7 +101,7 @@ export default function HUD({
       <div
         style={{
           position: 'absolute',
-          top: '24px',
+          top: 'max(24px, env(safe-area-inset-top, 24px))',
           left: '28px',
         }}
       >
@@ -114,7 +119,7 @@ export default function HUD({
       <div
         style={{
           position: 'absolute',
-          top: '24px',
+          top: 'max(24px, env(safe-area-inset-top, 24px))',
           right: '28px',
           textAlign: 'right',
         }}

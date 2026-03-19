@@ -45,6 +45,9 @@ function handleButtonLeave(e: React.MouseEvent<HTMLButtonElement>) {
   e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
 }
 
+// Dark halo for personalization text rendered over the canvas (no backdrop)
+const personalizationTextShadow = '0 0 12px rgba(0,0,0,0.9), 0 0 24px rgba(0,0,0,0.6)';
+
 export default function SavePanel({
   blockData,
   constellationData,
@@ -95,11 +98,12 @@ export default function SavePanel({
           style={{
             fontSize: '10px',
             fontWeight: 400,
-            color: 'rgba(255, 255, 255, 0.4)',
+            color: 'rgba(255, 255, 255, 0.5)',
             fontFamily: 'var(--font-mono, monospace)',
             letterSpacing: '0.5px',
             textTransform: 'uppercase',
             margin: 0,
+            textShadow: personalizationTextShadow,
           }}
         >
           Your constellation — shaped by your rhythm, unique to this moment.
@@ -107,11 +111,12 @@ export default function SavePanel({
         <p
           style={{
             fontSize: '9px',
-            color: 'rgba(255, 255, 255, 0.25)',
+            color: 'rgba(255, 255, 255, 0.35)',
             fontFamily: 'var(--font-mono, monospace)',
             letterSpacing: '0.5px',
             textTransform: 'uppercase',
             marginTop: '4px',
+            textShadow: personalizationTextShadow,
           }}
         >
           Save it now. Mint it onchain when Supernova goes live.
@@ -128,6 +133,7 @@ export default function SavePanel({
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0 clamp(1rem, 3vw, 2rem)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           height: '44px',
           background: 'rgba(5, 5, 16, 0.85)',
           backdropFilter: 'blur(8px)',

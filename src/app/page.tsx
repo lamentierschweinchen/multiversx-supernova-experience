@@ -554,8 +554,8 @@ export default function HomePage() {
         visible={gameState === 'save'}
       />
 
-      {/* Resolving indicator */}
-      {gameState === 'resolving' && (
+      {/* Resolving / reveal indicator */}
+      {(gameState === 'resolving' || gameState === 'reveal') && (
         <div
           style={{
             position: 'fixed',
@@ -570,14 +570,20 @@ export default function HomePage() {
           <p
             className="animate-pulse-soft"
             style={{
-              fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
+              fontSize: '11px',
               opacity: 0.6,
               fontFamily: 'var(--font-mono, monospace)',
-              letterSpacing: '0.1em',
+              letterSpacing: '0.15em',
               textTransform: 'uppercase',
+              background: 'rgba(5, 5, 16, 0.3)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              borderRadius: '8px',
+              padding: '12px 24px',
+              textShadow: '0 0 10px rgba(0,0,0,0.8)',
             }}
           >
-            Mapping your constellation...
+            Computing your supernova
           </p>
         </div>
       )}

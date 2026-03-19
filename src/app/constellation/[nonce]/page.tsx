@@ -137,6 +137,9 @@ export default function ConstellationPage() {
     );
   }
 
+  // Dark halo text shadow for text rendered over the canvas
+  const textShadow = '0 0 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)';
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
       {/* Three.js canvas */}
@@ -172,7 +175,7 @@ export default function ConstellationPage() {
         </div>
       )}
 
-      {/* Block info header */}
+      {/* Block info header — centered, with right-padding to avoid "Create yours" overlap on mobile */}
       {!loading && blockData && (
         <div
           style={{
@@ -183,14 +186,20 @@ export default function ConstellationPage() {
             zIndex: 10,
             pointerEvents: 'none',
             textAlign: 'center',
+            // Constrain width so the heading doesn't run under the "Create yours" button
+            maxWidth: 'calc(100vw - clamp(7rem, 18vw, 12rem) - 2rem)',
           }}
         >
           <h1
             className="gradient-text font-display"
             style={{
-              fontSize: 'clamp(1.25rem, 3vw, 2rem)',
+              fontSize: 'clamp(1rem, 3vw, 2rem)',
               fontWeight: 700,
               letterSpacing: '0.03em',
+              textShadow,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
             Block #{blockData.nonce.toLocaleString('en-US')}
@@ -199,8 +208,9 @@ export default function ConstellationPage() {
             style={{
               marginTop: '0.25rem',
               fontSize: '0.75rem',
-              opacity: 0.4,
+              opacity: 0.5,
               fontFamily: 'var(--font-mono, monospace)',
+              textShadow,
             }}
           >
             {constellationData?.stars.length ?? 0} stars &middot;{' '}
@@ -234,11 +244,13 @@ export default function ConstellationPage() {
             border: '1px solid rgba(255, 255, 255, 0.15)',
             background: 'rgba(0, 0, 0, 0.5)',
             backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
             color: 'rgba(255, 255, 255, 0.6)',
             textDecoration: 'none',
             fontSize: '0.8125rem',
             fontFamily: 'var(--font-mono, monospace)',
             transition: 'color 0.2s, border-color 0.2s',
+            whiteSpace: 'nowrap',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.color = '#00e5ff';
