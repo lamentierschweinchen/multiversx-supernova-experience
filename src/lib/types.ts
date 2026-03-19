@@ -112,31 +112,51 @@ export const PERFORMANCE_CONFIG: Record<
     bloomEnabled: boolean;
     nebulaEnabled: boolean;
     warpShader: boolean;
+    colorGrading: boolean;
+    filmGrain: boolean;
+    vignette: boolean;
+    chromaticAberration: boolean;
   }
 > = {
   high: {
-    starCount: 4000,
+    starCount: 5000,
     bloomEnabled: true,
     nebulaEnabled: true,
     warpShader: true,
+    colorGrading: true,
+    filmGrain: true,
+    vignette: true,
+    chromaticAberration: true,
   },
   medium: {
-    starCount: 1500,
+    starCount: 2500,
+    bloomEnabled: true,
+    nebulaEnabled: true,
+    warpShader: true,
+    colorGrading: true,
+    filmGrain: false,
+    vignette: true,
+    chromaticAberration: true,
+  },
+  low: {
+    starCount: 1000,
     bloomEnabled: true,
     nebulaEnabled: false,
     warpShader: true,
-  },
-  low: {
-    starCount: 600,
-    bloomEnabled: true,
-    nebulaEnabled: false,
-    warpShader: false,
+    colorGrading: false,
+    filmGrain: false,
+    vignette: true,
+    chromaticAberration: false,
   },
   minimal: {
-    starCount: 300,
+    starCount: 400,
     bloomEnabled: false,
     nebulaEnabled: false,
     warpShader: false,
+    colorGrading: false,
+    filmGrain: false,
+    vignette: false,
+    chromaticAberration: false,
   },
 };
 

@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { getBonApi } from '@/lib/bon-api';
 import { ensureWalletPoolReady } from '@/lib/wallet-pool';
 import { stats } from '@/lib/stats';
+import { useMock, mockResolve, mockSessionExists } from '@/lib/mock-data';
 import type { ResolveResponse } from '@/lib/types';
 
 function sleep(ms: number): Promise<void> {
@@ -28,6 +29,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'txHash is required.' }, { status: 400 });
     }
 
+    // --- Mock path ---
+    if (useMock()) {
+      if (!mockSessionExists(sessionId)) {
+        return NextResponse.json({ error: 'Session not found.' }, { status: 401 });
+      }
+
+      // Simulate a brief network delay for realism
+      await sleep(randMockDelay(200, 600));
+
+      stats.increment('totalConstellations');
+      const result: ResolveResponse = mockResolve(txHash);
+      return NextResponse.json(result);
+    }
+
+    // --- Real BoN API path ---
     const pool = await ensureWalletPoolReady();
     const bonApi = getBonApi();
 
@@ -76,4 +92,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.error('[/api/resolve] Error:', err instanceof Error ? err.message : err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+/** Small random delay for mock realism (not deterministic, just UX). */
+function randMockDelay(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }

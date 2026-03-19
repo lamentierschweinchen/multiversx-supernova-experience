@@ -4,7 +4,8 @@ import { starVertexShader, starFragmentShader } from '../shaders/star';
 // ============================================================
 // ParticleSystem — manages a single large BufferGeometry of
 // star particles across all scenes. Supports pulse, scatter,
-// gather, color-shift, and warp stretch.
+// gather, color-shift, warp stretch, ambient drift, and
+// expanding shockwave rings.
 // ============================================================
 
 export interface ParticleConfig {
@@ -23,19 +24,58 @@ const DEFAULT_CONFIG: ParticleConfig = {
   sizeVariation: 3.0,
 };
 
-// Shard-inspired palette for star tints
-const STAR_PALETTE = [
-  new THREE.Color(0xffffff), // white (dominant)
-  new THREE.Color(0xffffff),
-  new THREE.Color(0xffffff),
-  new THREE.Color(0xccddff), // blue-white
-  new THREE.Color(0xccddff),
-  new THREE.Color(0x00e5ff), // cyan (shard 0)
-  new THREE.Color(0x7c3aed), // purple (shard 2)
-  new THREE.Color(0xa78bfa), // light purple
-  new THREE.Color(0x93c5fd), // soft blue
-  new THREE.Color(0x23c483), // green (shard 1) — rare
+// Stellar temperature palette — realistic star colors
+// 60% white-blue, 20% warm yellow, 10% orange, 10% deep blue
+const STAR_TEMPERATURE_COLORS = [
+  // Hot blue-white (O/B class) — 10%
+  { color: new THREE.Color(0.65, 0.75, 1.0), weight: 10 },
+  // White (A class) — 25%
+  { color: new THREE.Color(0.95, 0.95, 1.0), weight: 25 },
+  // Blue-white (B/A class) — 25%
+  { color: new THREE.Color(0.80, 0.85, 1.0), weight: 25 },
+  // Yellow-white (F class) — 15%
+  { color: new THREE.Color(1.0, 0.95, 0.85), weight: 15 },
+  // Warm yellow (G class, sun-like) — 10%
+  { color: new THREE.Color(1.0, 0.88, 0.65), weight: 10 },
+  // Orange (K class) — 8%
+  { color: new THREE.Color(1.0, 0.72, 0.45), weight: 8 },
+  // Cool red (M class) — 5%
+  { color: new THREE.Color(1.0, 0.55, 0.35), weight: 5 },
+  // Deep blue nebula tint — 2%
+  { color: new THREE.Color(0.45, 0.55, 1.0), weight: 2 },
 ];
+
+// Pre-build weighted index for temperature color selection
+const TEMPERATURE_PALETTE: THREE.Color[] = [];
+for (const entry of STAR_TEMPERATURE_COLORS) {
+  for (let i = 0; i < entry.weight; i++) {
+    TEMPERATURE_PALETTE.push(entry.color);
+  }
+}
+
+/** Pick a random star color from temperature distribution */
+function randomStarColor(): THREE.Color {
+  return TEMPERATURE_PALETTE[Math.floor(Math.random() * TEMPERATURE_PALETTE.length)].clone();
+}
+
+/** Power-law distribution for realistic star sizes */
+function powerLawSize(baseSize: number, variation: number): number {
+  // Inverse power law: many small stars, few bright ones
+  const u = Math.random();
+  // Pareto-like: most stars cluster at small sizes
+  const powerLaw = Math.pow(u, 3.0); // cubic = heavy tail toward small
+  return baseSize * 0.3 + powerLaw * variation * 2.5;
+}
+
+// Shockwave ring data (for rhythm scene tap feedback)
+interface ShockwaveRing {
+  cx: number; cy: number; cz: number;
+  radius: number;
+  maxRadius: number;
+  speed: number;
+  intensity: number;
+  life: number;
+}
 
 export class ParticleSystem {
   readonly points: THREE.Points;
@@ -51,6 +91,14 @@ export class ParticleSystem {
   // Target positions for smooth interpolation
   private targetPositions: Float32Array | null = null;
   private lerpSpeed = 0;
+
+  // Ambient drift velocities (zero-g floating effect)
+  private velocities: Float32Array;
+  private driftEnabled = false;
+  private driftSpeed = 0.15; // base drift speed
+
+  // Shockwave rings
+  private shockwaves: ShockwaveRing[] = [];
 
   // Burst particles (separate system for tap feedback)
   private burstParticles: BurstParticle[] = [];
@@ -68,6 +116,7 @@ export class ParticleSystem {
     this.sizes = new Float32Array(this.count);
     this.brightnesses = new Float32Array(this.count);
     this.phases = new Float32Array(this.count);
+    this.velocities = new Float32Array(this.count * 3);
 
     // Initialize with random data
     this.initializeParticles();
@@ -100,7 +149,7 @@ export class ParticleSystem {
     this.points.frustumCulled = false;
   }
 
-  /** Initialize particles in a deep starfield layout (gate scene default) */
+  /** Initialize particles with realistic star distribution */
   private initializeParticles(): void {
     const { spread, depthRange, baseSize, sizeVariation } = this.config;
 
@@ -112,26 +161,42 @@ export class ParticleSystem {
       this.positions[i3 + 1] = (Math.random() - 0.5) * spread;
       this.positions[i3 + 2] = -Math.random() * depthRange;
 
-      // Color: pick from palette
-      const color = STAR_PALETTE[Math.floor(Math.random() * STAR_PALETTE.length)];
+      // Color: temperature-based distribution
+      const color = randomStarColor();
       this.colors[i3] = color.r;
       this.colors[i3 + 1] = color.g;
       this.colors[i3 + 2] = color.b;
 
-      // Size: variable
-      this.sizes[i] = baseSize + Math.random() * sizeVariation;
+      // Size: power-law distribution (many tiny, few bright)
+      this.sizes[i] = powerLawSize(baseSize, sizeVariation);
 
-      // Brightness
-      this.brightnesses[i] = 0.3 + Math.random() * 0.7;
+      // Brightness: correlate with size (bigger = brighter on average)
+      const sizeNorm = this.sizes[i] / (baseSize + sizeVariation);
+      this.brightnesses[i] = 0.2 + sizeNorm * 0.6 + Math.random() * 0.2;
 
       // Phase: random for twinkle offset
       this.phases[i] = Math.random();
+
+      // Initial drift velocity (very slow, random direction)
+      this.velocities[i3] = (Math.random() - 0.5) * 0.1;
+      this.velocities[i3 + 1] = (Math.random() - 0.5) * 0.1;
+      this.velocities[i3 + 2] = (Math.random() - 0.5) * 0.05;
     }
+  }
+
+  /** Enable/disable ambient star drift */
+  setDriftEnabled(enabled: boolean): void {
+    this.driftEnabled = enabled;
+  }
+
+  /** Set drift speed multiplier */
+  setDriftSpeed(speed: number): void {
+    this.driftSpeed = speed;
   }
 
   /** Arrange particles in a depth-receding starfield (for gate scene) */
   arrangeGateField(): void {
-    const { spread, depthRange } = this.config;
+    const { spread, depthRange, baseSize, sizeVariation } = this.config;
     const target = new Float32Array(this.count * 3);
 
     for (let i = 0; i < this.count; i++) {
@@ -141,8 +206,26 @@ export class ParticleSystem {
       const radius = Math.pow(Math.random(), 0.6) * spread * 0.5;
       target[i3] = Math.cos(angle) * radius;
       target[i3 + 1] = Math.sin(angle) * radius;
-      target[i3 + 2] = -Math.random() * depthRange;
+      // Much wider depth range for parallax
+      target[i3 + 2] = -5 - Math.random() * depthRange * 5;
+
+      // Refresh colors with temperature palette
+      const color = randomStarColor();
+      this.colors[i3] = color.r;
+      this.colors[i3 + 1] = color.g;
+      this.colors[i3 + 2] = color.b;
+
+      // Power-law sizes
+      this.sizes[i] = powerLawSize(baseSize, sizeVariation);
+
+      // Brightness correlates with size
+      const sizeNorm = this.sizes[i] / (baseSize + sizeVariation);
+      this.brightnesses[i] = 0.2 + sizeNorm * 0.6 + Math.random() * 0.2;
     }
+
+    this.geometry.getAttribute('aColor').needsUpdate = true;
+    this.geometry.getAttribute('aSize').needsUpdate = true;
+    this.geometry.getAttribute('aBrightness').needsUpdate = true;
 
     this.targetPositions = target;
     this.lerpSpeed = 1.5;
@@ -150,6 +233,7 @@ export class ParticleSystem {
 
   /** Arrange particles on a sphere surface (for rhythm scene) */
   arrangeSphere(radius: number = 15): void {
+    const { baseSize, sizeVariation } = this.config;
     const target = new Float32Array(this.count * 3);
 
     for (let i = 0; i < this.count; i++) {
@@ -158,12 +242,30 @@ export class ParticleSystem {
       const phi = Math.acos(1 - 2 * (i + 0.5) / this.count);
       const theta = Math.PI * (1 + Math.sqrt(5)) * i;
 
-      // Add some randomness to break uniformity
-      const r = radius * (0.8 + Math.random() * 0.4);
+      // Add some randomness to break uniformity + multi-shell depth
+      const shell = 0.7 + Math.random() * 0.6; // multiple shells
+      const r = radius * shell;
       target[i3] = r * Math.sin(phi) * Math.cos(theta);
       target[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       target[i3 + 2] = r * Math.cos(phi) - 10; // offset back
+
+      // Temperature colors for ambient stars
+      const color = randomStarColor();
+      this.colors[i3] = color.r;
+      this.colors[i3 + 1] = color.g;
+      this.colors[i3 + 2] = color.b;
+
+      // Size variety
+      this.sizes[i] = powerLawSize(baseSize * 0.8, sizeVariation * 0.6);
+
+      // Randomize drift velocities for this arrangement
+      this.velocities[i3] = (Math.random() - 0.5) * 0.08;
+      this.velocities[i3 + 1] = (Math.random() - 0.5) * 0.08;
+      this.velocities[i3 + 2] = (Math.random() - 0.5) * 0.04;
     }
+
+    this.geometry.getAttribute('aColor').needsUpdate = true;
+    this.geometry.getAttribute('aSize').needsUpdate = true;
 
     this.targetPositions = target;
     this.lerpSpeed = 2.0;
@@ -197,20 +299,21 @@ export class ParticleSystem {
       newBrightnesses[i] = 0.8 + star.size * 0.2;
     }
 
-    // Scatter remaining as background stars
+    // Scatter remaining as background stars with temperature colors
     for (let i = constellationCount; i < this.count; i++) {
       const i3 = i * 3;
       const angle = Math.random() * Math.PI * 2;
       const radius = 10 + Math.random() * 30;
       target[i3] = Math.cos(angle) * radius;
       target[i3 + 1] = Math.sin(angle) * radius;
-      target[i3 + 2] = -5 - Math.random() * 20;
+      target[i3 + 2] = -5 - Math.random() * 25;
 
-      newColors[i3] = 0.7 + Math.random() * 0.3;
-      newColors[i3 + 1] = 0.7 + Math.random() * 0.3;
-      newColors[i3 + 2] = 0.8 + Math.random() * 0.2;
+      const color = randomStarColor();
+      newColors[i3] = color.r;
+      newColors[i3 + 1] = color.g;
+      newColors[i3 + 2] = color.b;
 
-      newSizes[i] = 0.5 + Math.random() * 1.5;
+      newSizes[i] = powerLawSize(0.5, 1.0);
       newBrightnesses[i] = 0.1 + Math.random() * 0.3;
     }
 
@@ -275,14 +378,92 @@ export class ParticleSystem {
     this.geometry.getAttribute('aBrightness').needsUpdate = true;
   }
 
+  /**
+   * Emit an expanding shockwave ring from a point.
+   * Stars brighten as the ring passes through them.
+   */
+  emitShockwave(x: number, y: number, z: number, maxRadius: number = 25, speed: number = 15): void {
+    this.shockwaves.push({
+      cx: x, cy: y, cz: z,
+      radius: 0.5,
+      maxRadius,
+      speed,
+      intensity: 1.0,
+      life: 1.0,
+    });
+  }
+
   /** Decay all boosted brightnesses back toward baseline */
   private decayBrightness(dt: number): void {
+    let needsUpdate = false;
     for (let i = 0; i < this.count; i++) {
       if (this.brightnesses[i] > 1.0) {
         this.brightnesses[i] = Math.max(1.0, this.brightnesses[i] - dt * 2.0);
+        needsUpdate = true;
       }
     }
-    this.geometry.getAttribute('aBrightness').needsUpdate = true;
+    if (needsUpdate) {
+      this.geometry.getAttribute('aBrightness').needsUpdate = true;
+    }
+  }
+
+  /** Update shockwave rings and apply brightness to nearby stars */
+  private updateShockwaves(dt: number): void {
+    if (this.shockwaves.length === 0) return;
+
+    let needsBrightnessUpdate = false;
+
+    for (let s = this.shockwaves.length - 1; s >= 0; s--) {
+      const sw = this.shockwaves[s];
+      const prevRadius = sw.radius;
+      sw.radius += sw.speed * dt;
+      sw.life -= dt * (sw.speed / sw.maxRadius);
+      sw.intensity = sw.life * sw.life; // quadratic fade
+
+      if (sw.radius > sw.maxRadius || sw.life <= 0) {
+        this.shockwaves.splice(s, 1);
+        continue;
+      }
+
+      // Brighten stars in the ring band
+      const ringWidth = 2.0 + sw.radius * 0.15; // ring gets wider as it expands
+      const innerR = sw.radius - ringWidth * 0.5;
+      const outerR = sw.radius + ringWidth * 0.5;
+
+      for (let i = 0; i < this.count; i++) {
+        const i3 = i * 3;
+        const dx = this.positions[i3] - sw.cx;
+        const dy = this.positions[i3 + 1] - sw.cy;
+        const dz = this.positions[i3 + 2] - sw.cz;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (dist >= innerR && dist <= outerR) {
+          // How centered in the ring band (1.0 at center, 0 at edges)
+          const ringPos = 1.0 - Math.abs(dist - sw.radius) / (ringWidth * 0.5);
+          const boost = ringPos * sw.intensity * 0.8;
+          this.brightnesses[i] = Math.min(this.brightnesses[i] + boost * dt * 10, 2.5);
+          needsBrightnessUpdate = true;
+        }
+      }
+    }
+
+    if (needsBrightnessUpdate) {
+      this.geometry.getAttribute('aBrightness').needsUpdate = true;
+    }
+  }
+
+  /** Apply ambient drift to particle positions */
+  private updateDrift(dt: number): void {
+    if (!this.driftEnabled) return;
+
+    const speed = this.driftSpeed * dt;
+    for (let i = 0; i < this.count; i++) {
+      const i3 = i * 3;
+      this.positions[i3] += this.velocities[i3] * speed;
+      this.positions[i3 + 1] += this.velocities[i3 + 1] * speed;
+      this.positions[i3 + 2] += this.velocities[i3 + 2] * speed;
+    }
+    // Position update is handled by the lerp section or marked manually
   }
 
   /** Main update loop — call each frame */
@@ -306,6 +487,10 @@ export class ParticleSystem {
       if (allArrived) {
         this.targetPositions = null;
       }
+    } else if (this.driftEnabled) {
+      // Only apply drift when not lerping to target
+      this.updateDrift(dt);
+      this.geometry.getAttribute('position').needsUpdate = true;
     }
 
     // Decay pulse intensity
@@ -322,6 +507,9 @@ export class ParticleSystem {
 
     // Decay brightnesses
     this.decayBrightness(dt);
+
+    // Update shockwave rings
+    this.updateShockwaves(dt);
 
     // Update burst particles
     this.updateBursts(dt);

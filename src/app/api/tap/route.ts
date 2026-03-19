@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { ensureWalletPoolReady } from '@/lib/wallet-pool';
 import { stats } from '@/lib/stats';
+import { useMock, mockTap, mockSessionExists } from '@/lib/mock-data';
 import type { TapResponse } from '@/lib/types';
 
 // Simple in-memory rate limiter: sessionId -> timestamps of recent taps
@@ -61,6 +62,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Rate limit exceeded. Max 5 taps per second.' }, { status: 429 });
     }
 
+    // --- Mock path ---
+    if (useMock()) {
+      if (!mockSessionExists(sessionId)) {
+        return NextResponse.json({ error: 'Session not found. Call /api/start-round first.' }, { status: 401 });
+      }
+
+      stats.increment('totalTaps');
+      const body: TapResponse = mockTap(sessionId);
+      return NextResponse.json(body);
+    }
+
+    // --- Real BoN API path ---
     const pool = await ensureWalletPoolReady();
 
     // Verify session has a wallet

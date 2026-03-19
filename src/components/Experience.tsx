@@ -12,6 +12,12 @@ import { GateScene } from '@/three/scenes/GateScene';
 import { RhythmScene } from '@/three/scenes/RhythmScene';
 import { RevealScene } from '@/three/scenes/RevealScene';
 import { warpVertexShader, warpFragmentShader } from '@/three/shaders/warp';
+import {
+  colorGradeVertexShader, colorGradeFragmentShader,
+  filmGrainVertexShader, filmGrainFragmentShader,
+  vignetteVertexShader, vignetteFragmentShader,
+  chromaticAberrationVertexShader, chromaticAberrationFragmentShader,
+} from '@/three/shaders/postprocessing';
 import { exportPNG as exportPNGUtil, downloadBlob } from '@/three/utils/export';
 
 import type {
@@ -210,6 +216,10 @@ interface Internals {
   renderPass: RenderPass;
   bloomPass: UnrealBloomPass | null;
   warpPass: ShaderPass | null;
+  colorGradePass: ShaderPass | null;
+  chromaticAberrationPass: ShaderPass | null;
+  vignettePass: ShaderPass | null;
+  filmGrainPass: ShaderPass | null;
   particles: ParticleSystem;
   gateScene: GateScene;
   rhythmScene: RhythmScene;
@@ -236,7 +246,7 @@ function buildInternals(
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier === 'high' ? 2 : 1.5));
   renderer.setClearColor(0x000000, 1);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.2;
+  renderer.toneMappingExposure = 1.0;
   container.appendChild(renderer.domElement);
 
   // Style the canvas to fill container
@@ -247,7 +257,7 @@ function buildInternals(
   // ----- Camera -----
   const w = container.clientWidth || 1;
   const h = container.clientHeight || 1;
-  const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 200);
+  const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 600);
   camera.position.set(0, 0, 5);
 
   // ----- Shared particle system -----
@@ -258,23 +268,26 @@ function buildInternals(
   const rhythmScene = new RhythmScene(camera, particles);
   const revealScene = new RevealScene(camera, particles);
 
-  // ----- Post-processing -----
+  // ----- Post-processing chain -----
   const composer = new EffectComposer(renderer);
 
+  // 1. Render pass
   const renderPass = new RenderPass(gateScene.scene, camera);
   composer.addPass(renderPass);
 
+  // 2. Bloom — ethereal glow (tuned for cinematic look)
   let bloomPass: UnrealBloomPass | null = null;
   if (config.bloomEnabled) {
     bloomPass = new UnrealBloomPass(
       new THREE.Vector2(w, h),
-      tier === 'high' ? 1.2 : 0.8,   // strength
-      0.4,                             // radius
-      tier === 'high' ? 0.3 : 0.5,   // threshold
+      tier === 'high' ? 1.5 : tier === 'medium' ? 1.0 : 0.7,   // strength
+      tier === 'high' ? 0.8 : 0.5,                                // radius
+      tier === 'high' ? 0.1 : 0.3,                                // threshold
     );
     composer.addPass(bloomPass);
   }
 
+  // 3. Warp distortion (enabled only during warp transition)
   let warpPass: ShaderPass | null = null;
   if (config.warpShader) {
     warpPass = new ShaderPass({
@@ -291,12 +304,78 @@ function buildInternals(
     composer.addPass(warpPass);
   }
 
+  // 4. Chromatic aberration — subtle optical realism
+  let chromaticAberrationPass: ShaderPass | null = null;
+  if (config.chromaticAberration) {
+    chromaticAberrationPass = new ShaderPass({
+      uniforms: {
+        tDiffuse: { value: null },
+        uIntensity: { value: tier === 'high' ? 2.0 : 1.5 },
+        uResolution: { value: new THREE.Vector2(w, h) },
+      },
+      vertexShader: chromaticAberrationVertexShader,
+      fragmentShader: chromaticAberrationFragmentShader,
+    });
+    composer.addPass(chromaticAberrationPass);
+  }
+
+  // 5. Color grading — Interstellar-inspired blue-purple palette
+  let colorGradePass: ShaderPass | null = null;
+  if (config.colorGrading) {
+    colorGradePass = new ShaderPass({
+      uniforms: {
+        tDiffuse: { value: null },
+        uIntensity: { value: 0.7 },
+        uExposure: { value: 1.1 },
+        uContrast: { value: 1.08 },
+        uSaturation: { value: 1.1 },
+      },
+      vertexShader: colorGradeVertexShader,
+      fragmentShader: colorGradeFragmentShader,
+    });
+    composer.addPass(colorGradePass);
+  }
+
+  // 6. Vignette — focus the eye to center
+  let vignettePass: ShaderPass | null = null;
+  if (config.vignette) {
+    vignettePass = new ShaderPass({
+      uniforms: {
+        tDiffuse: { value: null },
+        uIntensity: { value: 0.45 },
+        uSoftness: { value: 0.3 },
+      },
+      vertexShader: vignetteVertexShader,
+      fragmentShader: vignetteFragmentShader,
+    });
+    composer.addPass(vignettePass);
+  }
+
+  // 7. Film grain — organic texture (very subtle)
+  let filmGrainPass: ShaderPass | null = null;
+  if (config.filmGrain) {
+    filmGrainPass = new ShaderPass({
+      uniforms: {
+        tDiffuse: { value: null },
+        uTime: { value: 0 },
+        uIntensity: { value: 0.5 },
+      },
+      vertexShader: filmGrainVertexShader,
+      fragmentShader: filmGrainFragmentShader,
+    });
+    composer.addPass(filmGrainPass);
+  }
+
   // ----- State -----
   let sceneState: SceneState = 'gate';
+
+  // Track time for grain
+  let grainTime = 0;
 
   // ----- Update -----
   function update(dt: number): void {
     particles.update(dt);
+    grainTime += dt;
 
     switch (sceneState) {
       case 'gate':
@@ -307,13 +386,33 @@ function buildInternals(
           warpPass.uniforms.uIntensity.value =
             particles.material.uniforms.uWarpFactor.value;
         }
+        // During warp, increase chromatic aberration
+        if (chromaticAberrationPass && sceneState === 'warp') {
+          const warpFactor = particles.material.uniforms.uWarpFactor.value;
+          chromaticAberrationPass.uniforms.uIntensity.value = 2.0 + warpFactor * 6.0;
+        } else if (chromaticAberrationPass && sceneState === 'gate') {
+          // Subtle baseline
+          chromaticAberrationPass.uniforms.uIntensity.value = 2.0;
+        }
         break;
       case 'rhythm':
         rhythmScene.update(dt);
+        // Restore chromatic aberration to subtle
+        if (chromaticAberrationPass) {
+          chromaticAberrationPass.uniforms.uIntensity.value = 1.5;
+        }
         break;
       case 'reveal':
         revealScene.update(dt);
+        if (chromaticAberrationPass) {
+          chromaticAberrationPass.uniforms.uIntensity.value = 1.0;
+        }
         break;
+    }
+
+    // Update film grain time
+    if (filmGrainPass) {
+      filmGrainPass.uniforms.uTime.value = grainTime;
     }
   }
 
@@ -329,6 +428,9 @@ function buildInternals(
     composer.setSize(w, h);
     if (bloomPass) {
       bloomPass.resolution.set(w, h);
+    }
+    if (chromaticAberrationPass) {
+      chromaticAberrationPass.uniforms.uResolution.value.set(w, h);
     }
   }
 
@@ -351,6 +453,10 @@ function buildInternals(
     renderPass,
     bloomPass,
     warpPass,
+    colorGradePass,
+    chromaticAberrationPass,
+    vignettePass,
+    filmGrainPass,
     particles,
     gateScene,
     rhythmScene,

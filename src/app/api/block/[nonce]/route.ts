@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { getBonApi } from '@/lib/bon-api';
+import { useMock, generateMockBlock } from '@/lib/mock-data';
 
 export async function GET(
   _request: NextRequest,
@@ -13,6 +14,12 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid block nonce.' }, { status: 400 });
     }
 
+    // --- Mock path ---
+    if (useMock()) {
+      return NextResponse.json(generateMockBlock(nonce));
+    }
+
+    // --- Real BoN API path ---
     const bonApi = getBonApi();
     const block = await bonApi.getBlock(nonce);
 

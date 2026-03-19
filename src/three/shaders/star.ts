@@ -1,4 +1,5 @@
-// Star particle shaders — custom point sprites with soft glow falloff
+// Star particle shaders — cinematic point sprites with soft glow,
+// twinkling, temperature-varied colors, and halo for bright stars
 
 export const starVertexShader = /* glsl */ `
   attribute float aSize;
@@ -9,6 +10,7 @@ export const starVertexShader = /* glsl */ `
   varying vec3 vColor;
   varying float vBrightness;
   varying float vPhase;
+  varying float vSize;
 
   uniform float uTime;
   uniform float uPulseIntensity;
@@ -19,8 +21,12 @@ export const starVertexShader = /* glsl */ `
     vColor = aColor;
     vPhase = aPhase;
 
-    // Gentle twinkle based on phase offset
-    float twinkle = 0.85 + 0.15 * sin(uTime * 1.5 + aPhase * 6.2831);
+    // Multi-frequency twinkle for organic feel
+    float twinkle1 = sin(uTime * 1.2 + aPhase * 6.2831);
+    float twinkle2 = sin(uTime * 2.7 + aPhase * 3.1415 + 1.3);
+    float twinkle3 = sin(uTime * 0.4 + aPhase * 9.42);
+    float twinkle = 0.78 + 0.12 * twinkle1 + 0.06 * twinkle2 + 0.04 * twinkle3;
+
     vBrightness = aBrightness * twinkle * (1.0 + uPulseIntensity * 0.5);
 
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
@@ -36,7 +42,9 @@ export const starVertexShader = /* glsl */ `
     // During warp, increase size for streak effect
     finalSize *= (1.0 + uWarpFactor * 2.0);
 
-    gl_PointSize = clamp(finalSize, 0.5, 64.0);
+    vSize = finalSize;
+
+    gl_PointSize = clamp(finalSize, 0.5, 80.0);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -45,6 +53,7 @@ export const starFragmentShader = /* glsl */ `
   varying vec3 vColor;
   varying float vBrightness;
   varying float vPhase;
+  varying float vSize;
 
   uniform float uTime;
   uniform float uWarpFactor;
@@ -57,7 +66,6 @@ export const starFragmentShader = /* glsl */ `
 
     // Warp: stretch into radial line
     if (uWarpFactor > 0.01) {
-      // Elongate along radial direction from screen center
       vec2 radialDir = normalize(center + vec2(0.001));
       float radialDist = abs(dot(center, radialDir));
       float tangentDist = abs(dot(center, vec2(-radialDir.y, radialDir.x)));
@@ -68,17 +76,53 @@ export const starFragmentShader = /* glsl */ `
     // Discard outside circle
     if (dist > 0.5) discard;
 
-    // Soft glow falloff — gaussian-ish
-    float coreRadius = 0.08;
-    float glowRadius = 0.5;
-    float core = exp(-dist * dist / (coreRadius * coreRadius * 2.0));
-    float glow = exp(-dist * dist / (glowRadius * glowRadius * 0.15));
-    float alpha = core * 0.9 + glow * 0.4;
+    // -- Multi-layer glow for cinematic stars --
 
-    // Color: core is white-hot, edges are tinted
-    vec3 coreColor = mix(vColor, vec3(1.0), 0.7);
-    vec3 edgeColor = vColor;
-    vec3 finalColor = mix(edgeColor, coreColor, core);
+    // Tight hot core
+    float coreRadius = 0.05;
+    float core = exp(-dist * dist / (coreRadius * coreRadius * 2.0));
+
+    // Inner glow
+    float innerGlowR = 0.12;
+    float innerGlow = exp(-dist * dist / (innerGlowR * innerGlowR * 2.0));
+
+    // Outer soft halo (visible on larger stars)
+    float haloR = 0.35;
+    float halo = exp(-dist * dist / (haloR * haloR * 0.3));
+
+    // Diffraction spikes for bright/large stars (subtle cross pattern)
+    float spike = 0.0;
+    if (vSize > 4.0 && vBrightness > 0.6) {
+      float spikeStrength = smoothstep(4.0, 12.0, vSize) * 0.3;
+      // 4-point diffraction cross
+      float ax = abs(center.x);
+      float ay = abs(center.y);
+      float spike1 = exp(-ay * ay * 800.0) * exp(-ax * 3.0);
+      float spike2 = exp(-ax * ax * 800.0) * exp(-ay * 3.0);
+      // Rotated 45-degree spikes (fainter)
+      vec2 rot45 = vec2(center.x + center.y, center.x - center.y) * 0.7071;
+      float spike3 = exp(-rot45.y * rot45.y * 1200.0) * exp(-abs(rot45.x) * 4.0) * 0.4;
+      float spike4 = exp(-rot45.x * rot45.x * 1200.0) * exp(-abs(rot45.y) * 4.0) * 0.4;
+      spike = (spike1 + spike2 + spike3 + spike4) * spikeStrength;
+    }
+
+    // Combine layers
+    float alpha = core * 1.0 + innerGlow * 0.5 + halo * 0.2 + spike;
+
+    // Color: hot white core fading to the star's temperature color
+    vec3 hotWhite = vec3(1.0, 0.98, 0.95);
+    vec3 coreColor = mix(vColor, hotWhite, 0.85);
+    vec3 innerColor = mix(vColor, hotWhite, 0.4);
+    vec3 haloColor = vColor * 0.8;
+    vec3 spikeColor = mix(vColor, hotWhite, 0.6);
+
+    vec3 finalColor = coreColor * core
+                    + innerColor * innerGlow * 0.5
+                    + haloColor * halo * 0.2
+                    + spikeColor * spike;
+
+    // Normalize to prevent over-bright
+    finalColor /= max(alpha, 0.001);
 
     // Apply brightness
     finalColor *= vBrightness;
