@@ -125,6 +125,24 @@ export class BlockSync {
     return this.interval;
   }
 
+  /**
+   * Returns the elapsed time (ms) since the last beat fired.
+   * Used by the game to calculate tap accuracy relative to the actual beat.
+   */
+  getTimeSinceLastBeat(): number {
+    return performance.now() - this.lastBeatTime;
+  }
+
+  /**
+   * Nudge the beat phase to align with an external clock (e.g. the music).
+   * Sets lastBeatTime so that the oscillator behaves as if a beat fired
+   * `externalTimeSinceBeat` milliseconds ago. Call periodically to keep
+   * the visual pulse locked to the audio track.
+   */
+  nudgeBeatTime(externalTimeSinceBeat: number): void {
+    this.lastBeatTime = performance.now() - externalTimeSinceBeat;
+  }
+
   // -----------------------------------------------------------
   // Internal
   // -----------------------------------------------------------

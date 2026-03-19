@@ -19,6 +19,11 @@ class AudioManager {
   /**
    * Must be called from a user gesture (click/tap) to satisfy browser autoplay policy.
    * Safe to call multiple times — only initializes once.
+   *
+   * CRITICAL: Both tracks are played (at volume 0) here so the browser marks them
+   * as user-initiated. Without this, calling .play() inside a setTimeout (crossfade)
+   * will be blocked. The pulse track is immediately paused after the unlocking play()
+   * call — it will be resumed later during crossfadeToPulse().
    */
   init() {
     if (this.initialized) return;
@@ -30,6 +35,25 @@ class AudioManager {
     this.introAudio.preload = 'auto';
     this.pulseAudio.preload = 'auto';
 
+    // Start both at volume 0 — the pulse track won't be heard yet
+    this.introAudio.volume = 0;
+    this.pulseAudio.volume = 0;
+
+    // Play both immediately while still inside the user gesture call stack.
+    // This "unlocks" both elements: future .play() calls (even inside setTimeout)
+    // will succeed because the browser already considers them user-initiated.
+    this.introAudio.play().catch((e) => console.warn('Intro unlock failed:', e));
+
+    // For pulse: play to unlock, then pause AFTER the play promise resolves
+    // (calling pause() synchronously before play() resolves causes AbortError)
+    const pulseRef = this.pulseAudio;
+    this.pulseAudio.play().then(() => {
+      pulseRef.pause();
+      pulseRef.currentTime = 0;
+    }).catch(() => {
+      // Autoplay was blocked entirely — that's OK, crossfadeToPulse will retry
+    });
+
     this.initialized = true;
   }
 
@@ -38,7 +62,8 @@ class AudioManager {
     if (!this.introAudio) return;
     this.introAudio.currentTime = 0;
     this.introAudio.volume = 0;
-    this.introAudio.play().catch(() => {});
+    // Already unlocked from init() — this will succeed even without a fresh gesture
+    this.introAudio.play().catch((e) => console.warn('Intro play failed:', e));
     this.fadeIn(this.introAudio, 0.6, 2000);
   }
 
@@ -50,7 +75,8 @@ class AudioManager {
     if (this.pulseAudio) {
       this.pulseAudio.currentTime = 0;
       this.pulseAudio.volume = 0;
-      this.pulseAudio.play().catch(() => {});
+      // Already unlocked from init() — succeeds inside setTimeout
+      this.pulseAudio.play().catch((e) => console.warn('Pulse play failed:', e));
       this.fadeIn(this.pulseAudio, 0.7, durationMs);
     }
   }
@@ -75,6 +101,29 @@ class AudioManager {
     if (!this.pulseAudio) return 0;
     const beatDuration = 0.6; // seconds — 100 BPM
     return (this.pulseAudio.currentTime % beatDuration) / beatDuration;
+  }
+
+  /**
+   * Returns milliseconds elapsed since the last musical downbeat, derived
+   * from the pulse track's audio clock. This is the authoritative timing
+   * source during rhythm — it never drifts from the music.
+   *
+   * Beat period: 600 ms (100 BPM).
+   * Returns 0 if the pulse track is not available or not playing.
+   */
+  getTimeSinceLastMusicalBeat(): number {
+    if (!this.pulseAudio || this.pulseAudio.paused) return 0;
+    const beatDurationSec = 0.6; // 100 BPM
+    const posInBeat = this.pulseAudio.currentTime % beatDurationSec;
+    return posInBeat * 1000; // convert seconds → ms
+  }
+
+  /**
+   * Returns the musical beat interval in ms. Always 600 ms (100 BPM) for the
+   * pulse track. Exposed so callers don't need to hard-code the BPM value.
+   */
+  getMusicalBeatInterval(): number {
+    return 600;
   }
 
   /** Duck pulse music to 40% for the constellation reveal moment. */

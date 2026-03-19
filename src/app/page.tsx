@@ -77,6 +77,8 @@ export default function HomePage() {
   const accuracySamples = useRef<number[]>([]);
   // Timestamp when rhythm mode started — used for 1s grace period
   const rhythmStartedAtRef = useRef<number>(0);
+  // Timer ref for the periodic music→BlockSync sync nudge
+  const musicSyncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Keep refs in sync
   useEffect(() => {
@@ -126,6 +128,10 @@ export default function HomePage() {
     return () => {
       blockSync.stop();
       audioManager.stopAll();
+      if (musicSyncTimerRef.current) {
+        clearInterval(musicSyncTimerRef.current);
+        musicSyncTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -217,6 +223,22 @@ export default function HomePage() {
       // locks to the first beat BlockSync fires from this moment.
       audioManager.syncPulseToBeat();
 
+      // Periodically nudge BlockSync's phase to match the music clock so
+      // the visual pulse never drifts from what the user hears. rAF and
+      // the audio clock diverge ~50-100 ms over 30 s; 2-second nudges keep
+      // them well within a single frame.
+      if (musicSyncTimerRef.current) {
+        clearInterval(musicSyncTimerRef.current);
+      }
+      musicSyncTimerRef.current = setInterval(() => {
+        if (gameStateRef.current === 'rhythm') {
+          const musicPhase = audioManager.getTimeSinceLastMusicalBeat();
+          if (musicPhase > 0) {
+            blockSyncRef.current?.nudgeBeatTime(musicPhase);
+          }
+        }
+      }, 2000);
+
       // Set round timer — starts NOW after warp completes, full 30s
       roundTimerRef.current = setTimeout(() => {
         endRound();
@@ -243,16 +265,35 @@ export default function HomePage() {
       return;
     }
 
-    // Calculate tap accuracy based on proximity to beat
+    // Calculate tap accuracy based on proximity to the nearest beat.
+    //
+    // Priority 1: Music clock (audioManager) — derived from the pulse track's
+    //   currentTime, so it's always in sync with what the user hears. Used
+    //   whenever the pulse track is playing.
+    // Priority 2: BlockSync — rAF-based oscillator used as fallback when music
+    //   isn't playing yet (e.g. during the very first crossfade window).
+    //
+    // Formula: distance from the nearest beat (either the last one or the next)
+    //   → 100% accuracy at beat time, 0% at the midpoint between beats.
     const blockSync = blockSyncRef.current;
-    let tapAccuracy = 50; // default if no sync data
-    if (blockSync) {
+    let tapAccuracy = 50; // default if no timing data is available
+
+    const musicTimeSinceBeat = audioManager.getTimeSinceLastMusicalBeat();
+    const musicInterval = audioManager.getMusicalBeatInterval();
+
+    if (musicTimeSinceBeat > 0 && musicInterval > 0) {
+      // Music-clock path (authoritative — never drifts from audio)
+      const distFromBeat = Math.min(
+        musicTimeSinceBeat,
+        musicInterval - musicTimeSinceBeat,
+      );
+      tapAccuracy = Math.round(100 * (1 - distFromBeat / (musicInterval / 2)));
+      tapAccuracy = Math.max(0, Math.min(100, tapAccuracy));
+    } else if (blockSync) {
+      // BlockSync fallback (used when pulse track isn't playing yet)
       const interval = blockSync.getInterval();
-      const now = performance.now();
-      // How close are we to the nearest beat boundary?
-      const phase = now % interval;
-      const distFromBeat = Math.min(phase, interval - phase);
-      // Accuracy: 100% at beat, 0% at mid-interval
+      const timeSinceBeat = blockSync.getTimeSinceLastBeat();
+      const distFromBeat = Math.min(timeSinceBeat, interval - timeSinceBeat);
       tapAccuracy = Math.round(100 * (1 - distFromBeat / (interval / 2)));
       tapAccuracy = Math.max(0, Math.min(100, tapAccuracy));
     }
@@ -318,6 +359,12 @@ export default function HomePage() {
     if (roundTimerRef.current) {
       clearTimeout(roundTimerRef.current);
       roundTimerRef.current = null;
+    }
+
+    // Stop periodic music→BlockSync sync nudge
+    if (musicSyncTimerRef.current) {
+      clearInterval(musicSyncTimerRef.current);
+      musicSyncTimerRef.current = null;
     }
 
     setGameState('resolving');
@@ -431,7 +478,15 @@ export default function HomePage() {
   }, []);
 
   const handlePlayAgain = useCallback(() => {
+    // Stop periodic sync nudge if still running (shouldn't be, but defensive)
+    if (musicSyncTimerRef.current) {
+      clearInterval(musicSyncTimerRef.current);
+      musicSyncTimerRef.current = null;
+    }
     audioManager.reset();
+    // init() is a no-op if already initialized. Called here so that if the Audio
+    // elements were somehow destroyed, they get recreated before playIntro().
+    audioManager.init();
     audioManager.playIntro();
     setGameState('gate');
     setSession(null);
