@@ -5,4 +5,4 @@ out/
 .superpowers/
 
 # Audio files (large MP3s — not tracked in git)
-public/audio/*.mp3
+.vercel
