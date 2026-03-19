@@ -54,7 +54,7 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
           fontFamily: 'var(--font-mono, monospace)',
         }}
       >
-        MultiversX Battle of Nodes
+        MultiversX
       </p>
 
       {/* Main title — Orbitron display font */}
@@ -85,9 +85,9 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
           fontFamily: 'var(--font-sans, sans-serif)',
         }}
       >
-        Every 600 milliseconds, a new block.
+        The universe expands. Block by block.
         <br />
-        Every block, a new universe.
+        Every 600 milliseconds.
       </p>
 
       {/* Enter prompt */}
@@ -113,6 +113,20 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
           Enter
         </p>
       </div>
+
+      {/* Footnote */}
+      <p
+        style={{
+          position: 'absolute',
+          bottom: '1rem',
+          fontSize: '9px',
+          opacity: 0.18,
+          letterSpacing: '0.1em',
+          fontFamily: 'var(--font-mono, monospace)',
+        }}
+      >
+        Deployed on the Battle of Nodes shadow fork
+      </p>
     </div>
   );
 }

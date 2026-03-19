@@ -57,7 +57,7 @@ export default function LoadingScreen({ visible }: LoadingScreenProps) {
             textTransform: 'uppercase',
           }}
         >
-          Entering the Supernova...
+          Synchronizing...
         </p>
       </div>
     </div>

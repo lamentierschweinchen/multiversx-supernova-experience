@@ -3,3 +3,6 @@ node_modules/
 out/
 .env*.local
 .superpowers/
+
+# Audio files (large MP3s — not tracked in git)
+public/audio/*.mp3

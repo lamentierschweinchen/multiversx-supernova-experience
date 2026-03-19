@@ -81,7 +81,7 @@ export default function TechHUD({
   const labels: HUDLabel[] = [
     {
       id: 'blockinfo',
-      text: `BLOCK #${blockData.nonce.toLocaleString('en-US')} \u00B7 ${blockData.txCount} TXS \u00B7 ${formatGas(blockData.gasConsumed)} GAS`,
+      text: `BLOCK #${blockData.nonce.toLocaleString('en-US')} \u00B7 ${blockData.txCount} TXS \u00B7 ${formatGas(blockData.gasConsumed)} FUEL`,
       color: 'rgba(255, 255, 255, 0.85)',
       dotColor: 'rgba(255, 255, 255, 0.7)',
       finalX: '0px',
@@ -90,7 +90,7 @@ export default function TechHUD({
     },
     {
       id: 'proposer',
-      text: 'PROPOSER',
+      text: 'ORIGIN',
       subtext: truncateHex(blockData.proposer, 8),
       color: 'rgba(255, 240, 220, 0.8)',
       dotColor: 'rgba(255, 240, 220, 0.7)',
@@ -100,7 +100,7 @@ export default function TechHUD({
     },
     {
       id: 'shard0',
-      text: `SHARD 0 \u00B7 ${shard0Count}`,
+      text: `SECTOR 0 \u00B7 ${shard0Count}`,
       color: 'rgba(0, 229, 255, 0.85)',
       dotColor: '#00e5ff',
       finalX: '30vw',
@@ -109,7 +109,7 @@ export default function TechHUD({
     },
     {
       id: 'shard1',
-      text: `SHARD 1 \u00B7 ${shard1Count}`,
+      text: `SECTOR 1 \u00B7 ${shard1Count}`,
       color: 'rgba(35, 196, 131, 0.85)',
       dotColor: '#23c483',
       finalX: '36vw',
@@ -118,7 +118,7 @@ export default function TechHUD({
     },
     {
       id: 'shard2',
-      text: `SHARD 2 \u00B7 ${shard2Count}`,
+      text: `SECTOR 2 \u00B7 ${shard2Count}`,
       color: 'rgba(124, 58, 237, 0.85)',
       dotColor: '#7c3aed',
       finalX: '30vw',
@@ -127,7 +127,7 @@ export default function TechHUD({
     },
     {
       id: 'crossshard',
-      text: `CROSS-SHARD PATHS: ${crossShardPaths}`,
+      text: `CROSS-SECTOR LINKS: ${crossShardPaths}`,
       color: 'rgba(130, 160, 230, 0.75)',
       dotColor: 'rgba(130, 160, 230, 0.7)',
       finalX: '0px',

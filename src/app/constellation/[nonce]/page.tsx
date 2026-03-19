@@ -36,7 +36,7 @@ export default function ConstellationPage() {
   // Fetch block data
   useEffect(() => {
     if (!nonce || isNaN(nonce)) {
-      setError('Invalid block nonce');
+      setError('Constellation not found');
       setLoading(false);
       return;
     }
@@ -45,7 +45,7 @@ export default function ConstellationPage() {
       try {
         const response = await fetch(`/api/block/${nonce}`);
         if (!response.ok) {
-          setError(`Block #${nonce} not found`);
+          setError('This constellation doesn\'t exist yet');
           setLoading(false);
           return;
         }
@@ -56,7 +56,7 @@ export default function ConstellationPage() {
         setConstellationData(constellation);
         setLoading(false);
       } catch {
-        setError('Failed to load block data');
+        setError('Something went wrong');
         setLoading(false);
       }
     };
@@ -131,7 +131,7 @@ export default function ConstellationPage() {
             fontWeight: 600,
           }}
         >
-          Play the game
+          Create yours
         </a>
       </div>
     );
@@ -167,7 +167,7 @@ export default function ConstellationPage() {
               letterSpacing: '0.1em',
             }}
           >
-            Loading constellation...
+            Rendering...
           </p>
         </div>
       )}
@@ -203,8 +203,8 @@ export default function ConstellationPage() {
               fontFamily: 'var(--font-mono, monospace)',
             }}
           >
-            {constellationData?.stars.length ?? 0} validators &middot;{' '}
-            {blockData.txCount} txs
+            {constellationData?.stars.length ?? 0} stars &middot;{' '}
+            {blockData.txCount} transactions
           </p>
         </div>
       )}
@@ -220,7 +220,7 @@ export default function ConstellationPage() {
         />
       )}
 
-      {/* Play the game link */}
+      {/* Create yours link */}
       {!loading && (
         <a
           href="/"
@@ -249,7 +249,7 @@ export default function ConstellationPage() {
             e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
           }}
         >
-          Play the game &rarr;
+          Create yours &rarr;
         </a>
       )}
     </div>

@@ -51,32 +51,18 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
     >
       <p
         style={{
-          fontSize: '16px',
+          fontSize: '14px',
           fontWeight: 500,
           letterSpacing: '0.15em',
           textTransform: 'uppercase',
-          color: 'rgba(255, 255, 255, 0.8)',
+          color: 'rgba(255, 255, 255, 0.7)',
           fontFamily: 'var(--font-mono, monospace)',
           textAlign: 'center',
           textShadow: '0 0 20px rgba(0, 229, 255, 0.5)',
           margin: 0,
         }}
       >
-        FEEL THE PULSE
-      </p>
-      <p
-        style={{
-          marginTop: '0.6rem',
-          fontSize: '12px',
-          color: 'rgba(255, 255, 255, 0.55)',
-          textAlign: 'center',
-          fontWeight: 400,
-          letterSpacing: '0.15em',
-          fontFamily: 'var(--font-mono, monospace)',
-          textShadow: '0 0 12px rgba(0, 229, 255, 0.3)',
-        }}
-      >
-        tap when the star expands
+        TAP ON THE PULSE
       </p>
     </div>
   );

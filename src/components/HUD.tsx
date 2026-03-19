@@ -117,21 +117,18 @@ export default function HUD({
         Accuracy: {Math.round(animatedAccuracy)}%
       </div>
 
-      {/* Bottom-center: TX count and tap count */}
+      {/* Bottom-center: TX count */}
       <div
         style={{
           position: 'absolute',
           bottom: 'clamp(1rem, 3vh, 2rem)',
           left: '50%',
           transform: 'translateX(-50%)',
-          display: 'flex',
-          gap: '2rem',
           opacity: 0.5,
           fontSize: '12px',
         }}
       >
-        <span>Taps: {tapCount}</span>
-        <span>Txs sent: {txCount}</span>
+        <span>Transactions: {txCount}</span>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 {
   "name": "supernova-experience",
   "version": "0.1.0",
+  "description": "Feel the speed of MultiversX Supernova — an interactive experience that turns 600ms blocks into art",
   "private": true,
   "scripts": {
     "dev": "next dev",

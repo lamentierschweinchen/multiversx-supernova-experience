@@ -19,6 +19,7 @@ import SavePanel from '@/components/SavePanel';
 import TechHUD from '@/components/TechHUD';
 import LoadingScreen from '@/components/LoadingScreen';
 import GameInstructions from '@/components/GameInstructions';
+import { audioManager } from '@/lib/audio';
 
 // Three.js Experience component — must be loaded client-side only
 const Experience = dynamic(() => import('@/components/Experience'), {
@@ -121,6 +122,7 @@ export default function HomePage() {
 
     return () => {
       blockSync.stop();
+      audioManager.stopAll();
     };
   }, []);
 
@@ -148,7 +150,14 @@ export default function HomePage() {
   // Gate enter → start round
   // ---------------------------------------------------------------
   const handleEnter = useCallback(async () => {
+    // Init audio on user gesture (unlocks browser autoplay) and start intro music
+    audioManager.init();
+    audioManager.playIntro();
+
     setGameState('warp');
+
+    // Crossfade from intro to pulse music over the warp duration
+    audioManager.crossfadeToPulse(3500);
 
     // Trigger warp animation
     if (experienceRef.current) {
@@ -338,15 +347,17 @@ export default function HomePage() {
         const constellation = generateConstellation(fetchedBlockData);
         setConstellationData(constellation);
 
-        // Reveal
+        // Reveal — duck music for the dramatic moment
+        audioManager.duckForReveal();
         setGameState('reveal');
 
         if (experienceRef.current) {
           experienceRef.current.showConstellation(constellation);
         }
 
-        // After reveal animation, show save panel
+        // After reveal animation, show save panel and restore music volume
         setTimeout(() => {
+          audioManager.restoreAfterReveal();
           setGameState('save');
         }, 4000); // 4s reveal animation
       } else {
@@ -379,6 +390,7 @@ export default function HomePage() {
     const constellation = generateConstellation(fallbackBlock);
     setConstellationData(constellation);
 
+    audioManager.duckForReveal();
     setGameState('reveal');
 
     if (experienceRef.current) {
@@ -386,6 +398,7 @@ export default function HomePage() {
     }
 
     setTimeout(() => {
+      audioManager.restoreAfterReveal();
       setGameState('save');
     }, 4000);
   }, []);
@@ -400,6 +413,8 @@ export default function HomePage() {
   }, []);
 
   const handlePlayAgain = useCallback(() => {
+    audioManager.reset();
+    audioManager.playIntro();
     setGameState('gate');
     setSession(null);
     setAccuracy(0);
@@ -527,7 +542,7 @@ export default function HomePage() {
               textTransform: 'uppercase',
             }}
           >
-            Resolving block...
+            Mapping your constellation...
           </p>
         </div>
       )}

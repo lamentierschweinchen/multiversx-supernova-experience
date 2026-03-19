@@ -49,41 +49,78 @@ export default function SavePanel({
   };
 
   return (
-    <div
-      className="save-panel animate-slide-up"
-      style={{
-        bottom: 0,
-        left: 0,
-        right: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '0 clamp(1rem, 3vw, 2rem)',
-        height: '48px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-      }}
-    >
-      {/* Left: block info */}
+    <>
+      {/* Personalization message above the bar */}
       <div
+        className="save-panel"
         style={{
-          fontFamily: 'var(--font-mono, monospace)',
-          fontSize: '10px',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color: 'rgba(255, 255, 255, 0.35)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          minWidth: 0,
+          bottom: '56px',
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          pointerEvents: 'none',
         }}
       >
-        Block #{formatNumber(blockData.nonce)} &middot;{' '}
-        {constellationData.stars.length} validators &middot;{' '}
-        {formatNumber(blockData.txCount)} txs
+        <p
+          style={{
+            fontSize: '13px',
+            fontWeight: 300,
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontFamily: 'var(--font-sans, sans-serif)',
+            letterSpacing: '0.04em',
+            margin: 0,
+          }}
+        >
+          Your constellation — shaped by your rhythm, unique to this moment.
+        </p>
+        <p
+          style={{
+            fontSize: '10px',
+            color: 'rgba(255, 255, 255, 0.3)',
+            fontFamily: 'var(--font-mono, monospace)',
+            letterSpacing: '0.06em',
+            marginTop: '4px',
+          }}
+        >
+          Save it now. Mint it on-chain when Supernova goes live.
+        </p>
       </div>
+
+      <div
+        className="save-panel animate-slide-up"
+        style={{
+          bottom: 0,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 clamp(1rem, 3vw, 2rem)',
+          height: '48px',
+          background: 'rgba(0, 0, 0, 0.3)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+        }}
+      >
+        {/* Left: block info */}
+        <div
+          style={{
+            fontFamily: 'var(--font-mono, monospace)',
+            fontSize: '10px',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'rgba(255, 255, 255, 0.35)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            minWidth: 0,
+          }}
+        >
+          Block #{formatNumber(blockData.nonce)} &middot;{' '}
+          {constellationData.stars.length} stars &middot;{' '}
+          {formatNumber(blockData.txCount)} txs
+        </div>
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />
@@ -220,7 +257,8 @@ export default function SavePanel({
           </svg>
           Again
         </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

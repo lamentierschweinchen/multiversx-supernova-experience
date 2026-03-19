@@ -21,29 +21,29 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: '600ms: Enter the Supernova',
+  title: '600ms — Feel the Supernova',
   description:
-    'Every 600 milliseconds, a new block. Every block, a new universe. Feel the rhythm of MultiversX in an interactive experience.',
+    'The universe expands. Block by block. Every 600 milliseconds. Match the rhythm of MultiversX Supernova and create a constellation that is yours alone.',
   openGraph: {
-    title: '600ms: Enter the Supernova',
+    title: '600ms — Feel the Supernova',
     description:
-      'Feel the rhythm of MultiversX blocks. Tap in sync, create unique constellations from real blockchain data.',
+      'Sync your rhythm to a live network. Create a constellation that only exists once. An interactive experience by MultiversX.',
     type: 'website',
-    siteName: '600ms Supernova',
+    siteName: '600ms',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: '600ms: Enter the Supernova — MultiversX interactive experience',
+        alt: '600ms — Feel the Supernova',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: '600ms: Enter the Supernova',
+    title: '600ms — Feel the Supernova',
     description:
-      'Feel the rhythm of MultiversX blocks. Tap in sync, create unique constellations from real blockchain data.',
+      'Sync your rhythm to a live network. Create a constellation that only exists once. An interactive experience by MultiversX.',
     images: ['/og-image.png'],
   },
 };

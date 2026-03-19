@@ -1,0 +1,8 @@
+# This directory expects two audio files:
+#   intro.mp3  — intro/gate scene music ("The Great Beyond")
+#   pulse.mp3  — rhythm game music, loops continuously ("Translucent Supernova")
+#
+# The MP3 files are excluded from git via .gitignore.
+# Copy them here manually or run:
+#   cp "The Great Beyond.mp3" public/audio/intro.mp3
+#   cp "Translucent Supernova (Modify).mp3" public/audio/pulse.mp3
