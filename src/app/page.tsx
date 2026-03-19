@@ -153,14 +153,13 @@ export default function HomePage() {
   // Gate enter → start round
   // ---------------------------------------------------------------
   const handleEnter = useCallback(async () => {
-    // Init audio on user gesture (unlocks browser autoplay) and start intro music
+    // Init audio FIRST — must happen synchronously inside the click handler
+    // to satisfy browser autoplay policy. Creates Audio elements if not yet done.
     audioManager.init();
+    // Start intro music immediately — still inside the user gesture call stack
     audioManager.playIntro();
 
     setGameState('warp');
-
-    // Crossfade from intro to pulse music over the warp duration
-    audioManager.crossfadeToPulse(3500);
 
     // Trigger warp animation
     if (experienceRef.current) {
@@ -200,8 +199,12 @@ export default function HomePage() {
       });
     }
 
-    // After warp duration, start rhythm
+    // After warp duration, start rhythm and crossfade music
     setTimeout(() => {
+      // Crossfade from intro to pulse — called here (inside setTimeout) so the
+      // pulse track's play() call still works because the AudioContext was already
+      // unlocked by the earlier init()/playIntro() in the click handler.
+      audioManager.crossfadeToPulse(3500);
       setGameState('rhythm');
       setTapCount(0);
       setTxCount(0);
@@ -570,20 +573,15 @@ export default function HomePage() {
           <p
             className="animate-pulse-soft"
             style={{
-              fontSize: '11px',
-              opacity: 0.6,
+              fontSize: 'clamp(1rem, 3vw, 1.5rem)',
               fontFamily: 'var(--font-mono, monospace)',
               letterSpacing: '0.15em',
               textTransform: 'uppercase',
-              background: 'rgba(5, 5, 16, 0.3)',
-              backdropFilter: 'blur(4px)',
-              WebkitBackdropFilter: 'blur(4px)',
-              borderRadius: '8px',
-              padding: '12px 24px',
-              textShadow: '0 0 10px rgba(0,0,0,0.8)',
+              color: 'rgba(255, 255, 255, 0.85)',
+              textShadow: '0 2px 20px rgba(0,0,0,0.95), 0 0 40px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,1)',
             }}
           >
-            Computing your supernova
+            Creating your constellation
           </p>
         </div>
       )}

@@ -91,6 +91,7 @@ export default function SavePanel({
           left: 0,
           right: 0,
           textAlign: 'center',
+          padding: '0 clamp(200px, 25vw, 300px) 0 16px',
           pointerEvents: 'none',
         }}
       >

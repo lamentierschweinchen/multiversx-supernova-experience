@@ -39,22 +39,62 @@ function getCrossShardPaths(blockData: BlockData): number {
   return count;
 }
 
-// Shard colors from galaxy-of-nodes
+// Shard colors
 const SHARD_AMBER = '#e8a849';
 const SHARD_TEAL = '#4ecdc4';
 const SHARD_CORAL = '#e06c75';
-const SOFT_BLUE = '#6b8aaa';
 
-interface HUDLabel {
-  id: string;
-  title: string;
-  data: string;
-  explain: string;
+// Shared text styles
+const sectionTitleStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono, monospace)',
+  fontSize: '11px',
+  letterSpacing: '1.5px',
+  textTransform: 'uppercase' as const,
+  color: 'rgba(255,255,255,0.7)',
+  marginBottom: '6px',
+};
+
+const bodyTextStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono, monospace)',
+  fontSize: '10px',
+  lineHeight: 1.6,
+  color: 'rgba(255,255,255,0.45)',
+  letterSpacing: '0.3px',
+  textTransform: 'none' as const,
+};
+
+const dataValueStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono, monospace)',
+  fontSize: '10px',
+  color: 'rgba(255,255,255,0.6)',
+  letterSpacing: '0.3px',
+  textTransform: 'none' as const,
+};
+
+const sectionStyle: React.CSSProperties = {
+  marginBottom: '20px',
+};
+
+interface ShardDotProps {
   color: string;
-  dotColor: string;
-  finalX: string;
-  finalY: string;
-  index: number;
+}
+
+function ShardDot({ color }: ShardDotProps) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: '7px',
+        height: '7px',
+        borderRadius: '50%',
+        backgroundColor: color,
+        boxShadow: `0 0 5px ${color}88`,
+        marginRight: '6px',
+        verticalAlign: 'middle',
+        flexShrink: 0,
+      }}
+    />
+  );
 }
 
 export default function TechHUD({
@@ -62,28 +102,25 @@ export default function TechHUD({
   constellationData,
   visible,
 }: TechHUDProps) {
-  // expanded controls whether the fan-out labels are shown
-  const [expanded, setExpanded] = useState(false);
-  // fanout controls the animated expansion (separate so we can delay)
-  const [fanout, setFanout] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Reset when hidden
   useEffect(() => {
     if (!visible) {
-      setExpanded(false);
-      setFanout(false);
+      setOpen(false);
     }
   }, [visible]);
 
-  // When expanded changes, drive fanout with a micro-delay so CSS transition triggers
+  // Trigger CSS transition by mounting first, then animating in
   useEffect(() => {
-    if (expanded) {
-      const timer = setTimeout(() => setFanout(true), 30);
+    if (open) {
+      const timer = setTimeout(() => setMounted(true), 10);
       return () => clearTimeout(timer);
     } else {
-      setFanout(false);
+      setMounted(false);
     }
-  }, [expanded]);
+  }, [open]);
 
   if (!visible || !blockData) return null;
 
@@ -94,270 +131,221 @@ export default function TechHUD({
   const shard1Count = shardCounts.get(1) ?? 0;
   const shard2Count = shardCounts.get(2) ?? 0;
 
-  // Block hash: use blockData.hash if available, else nonce as hex
-  const hashStr = blockData.hash && blockData.hash.length >= 8
-    ? blockData.hash
-    : blockData.nonce.toString(16).padStart(8, '0');
-  const hashDisplay = truncate(hashStr, 4);
+  const proposerDisplay =
+    blockData.proposer && blockData.proposer.length >= 8
+      ? truncate(blockData.proposer, 4)
+      : blockData.proposer ?? '—';
 
-  // Proposer BLS key truncated
-  const proposerDisplay = blockData.proposer && blockData.proposer.length >= 8
-    ? truncate(blockData.proposer, 4)
-    : blockData.proposer ?? '—';
-
-  const totalTxCount = blockData.txCount;
   const gasFormatted = formatGas(blockData.gasConsumed);
 
-  const labels: HUDLabel[] = [
-    {
-      id: 'blockinfo',
-      title: `BLOCK #${blockData.nonce.toLocaleString('en-US')}`,
-      data: `hash: ${hashDisplay}`,
-      explain: `this moment in the network's history seeded your unique constellation`,
-      color: 'rgba(255, 255, 255, 0.85)',
-      dotColor: 'rgba(255, 255, 255, 0.7)',
-      finalX: '0px',
-      finalY: '-38vh',
-      index: 0,
-    },
-    {
-      id: 'proposer',
-      title: 'ORIGIN — BLOCK PROPOSER',
-      data: `bls: ${proposerDisplay}`,
-      explain: `the validator that led consensus for this block — your central star`,
-      color: 'rgba(255, 255, 255, 0.85)',
-      dotColor: 'rgba(255, 255, 255, 0.7)',
-      finalX: 'clamp(-160px, -36vw, -80px)',
-      finalY: '-5vh',
-      index: 1,
-    },
-    {
-      id: 'shard0',
-      title: 'SECTOR 0 — NETWORK SHARD',
-      data: `${shard0Count} validators in this partition`,
-      explain: `the network splits into parallel lanes — each processes transactions independently`,
-      color: SHARD_AMBER,
-      dotColor: SHARD_AMBER,
-      finalX: 'clamp(80px, 30vw, 160px)',
-      finalY: '-22vh',
-      index: 2,
-    },
-    {
-      id: 'shard1',
-      title: 'SECTOR 1 — NETWORK SHARD',
-      data: `${shard1Count} validators in this partition`,
-      explain: `stars are grouped and colored by which shard their validator operates in`,
-      color: SHARD_TEAL,
-      dotColor: SHARD_TEAL,
-      finalX: 'clamp(80px, 36vw, 160px)',
-      finalY: '2vh',
-      index: 3,
-    },
-    {
-      id: 'shard2',
-      title: 'SECTOR 2 — NETWORK SHARD',
-      data: `${shard2Count} validators in this partition`,
-      explain: `each validator's position shifts every block — no two constellations are alike`,
-      color: SHARD_CORAL,
-      dotColor: SHARD_CORAL,
-      finalX: 'clamp(80px, 30vw, 160px)',
-      finalY: '24vh',
-      index: 4,
-    },
-    {
-      id: 'crossshard',
-      title: 'CROSS-SECTOR LINKS',
-      data: `${crossShardPaths} paths \u00B7 ${totalTxCount} transactions \u00B7 ${gasFormatted} fuel`,
-      explain: `when data routes between shards, it traces the lines connecting your stars`,
-      color: SOFT_BLUE,
-      dotColor: SOFT_BLUE,
-      finalX: '0px',
-      finalY: '38vh',
-      index: 5,
-    },
-  ];
-
   return (
-    <div
-      className="tech-hud"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 25,
-        pointerEvents: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {/* Fan-out labels — only rendered when expanded */}
-      {expanded && labels.map((label) => {
-        const delay = label.index * 0.1;
-        const explainDelay = delay + 0.3;
-        return (
-          <div
-            key={label.id}
-            className="hud-fanout-label"
-            style={{
-              position: 'absolute',
-              transform: fanout
-                ? `translate(${label.finalX}, ${label.finalY})`
-                : 'translate(0px, 0px)',
-              opacity: fanout ? 1 : 0,
-              transition: `transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '3px',
-              willChange: 'transform, opacity',
-              maxWidth: 'calc(50vw - 20px)',
-            }}
-          >
-            {/* Title line — 11px, opacity 0.8 */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontFamily: 'var(--font-mono, monospace)',
-                fontSize: '11px',
-                letterSpacing: '1px',
-                textTransform: 'uppercase' as const,
-                color: label.color,
-                opacity: 0.8,
-                textShadow: `0 0 8px ${label.dotColor}40, 0 0 12px rgba(0,0,0,0.9), 0 0 24px rgba(0,0,0,0.6)`,
-              }}
-            >
-              {/* Colored dot pip */}
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: '5px',
-                  height: '5px',
-                  borderRadius: '50%',
-                  backgroundColor: label.dotColor,
-                  boxShadow: `0 0 6px ${label.dotColor}88`,
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ whiteSpace: 'nowrap' }}>{label.title}</span>
-            </div>
-
-            {/* Data line — 10px, opacity 0.6 */}
-            <div
-              style={{
-                fontFamily: 'var(--font-mono, monospace)',
-                fontSize: '10px',
-                letterSpacing: '0.5px',
-                color: label.color,
-                opacity: 0.6,
-                textShadow: `0 0 8px ${label.dotColor}22, 0 0 12px rgba(0,0,0,0.8)`,
-                whiteSpace: 'nowrap',
-                paddingLeft: '11px',
-              }}
-            >
-              {label.data}
-            </div>
-
-            {/* Explain line — 9px, opacity 0.35, staggered +0.3s, wrapping allowed */}
-            <div
-              style={{
-                fontFamily: 'var(--font-mono, monospace)',
-                fontSize: '9px',
-                letterSpacing: '0.4px',
-                color: label.color,
-                maxWidth: '200px',
-                textAlign: 'center',
-                lineHeight: 1.4,
-                paddingLeft: '11px',
-                opacity: fanout ? 0.35 : 0,
-                transition: `opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${explainDelay}s`,
-                willChange: 'opacity',
-                textShadow: '0 0 10px rgba(0,0,0,0.9)',
-              }}
-            >
-              {label.explain}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Toggle button — always visible when TechHUD is shown */}
-      {/* Positioned bottom-right above save bar (bottom: 56px) */}
+    <>
+      {/* Side panel */}
       <div
+        className="tech-hud"
         style={{
           position: 'fixed',
-          bottom: '56px',
-          right: '16px',
-          pointerEvents: 'auto',
-          zIndex: 26,
-          display: 'flex',
-          gap: '6px',
+          right: 0,
+          top: 0,
+          bottom: '44px', // above save bar
+          width: 'min(380px, 85vw)',
+          zIndex: 25,
+          transform: open && mounted ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          willChange: 'transform',
+          background: 'rgba(5, 5, 16, 0.92)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          // Hide scrollbar visually but keep scroll functionality
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(255,255,255,0.1) transparent',
+          pointerEvents: open ? 'auto' : 'none',
         }}
+        // Prevent taps inside the panel from triggering the rhythm tap handler
+        onPointerDown={(e) => e.stopPropagation()}
       >
-        {expanded && (
-          <button
-            onClick={() => setExpanded(false)}
-            style={{
-              height: '26px',
-              padding: '0 12px',
-              borderRadius: '13px',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              background: 'rgba(5, 5, 16, 0.7)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              color: 'rgba(255, 255, 255, 0.5)',
-              fontSize: '10px',
-              fontFamily: 'var(--font-mono, monospace)',
-              letterSpacing: '1px',
-              textTransform: 'uppercase' as const,
-              cursor: 'pointer',
-              transition: 'border-color 0.2s, color 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)';
-              e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-              e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
-            }}
-          >
-            Close
-          </button>
-        )}
-        {!expanded && (
-          <button
-            onClick={() => setExpanded(true)}
-            style={{
-              height: '26px',
-              padding: '0 12px',
-              borderRadius: '13px',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              background: 'rgba(5, 5, 16, 0.7)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              color: 'rgba(255, 255, 255, 0.5)',
-              fontSize: '10px',
-              fontFamily: 'var(--font-mono, monospace)',
-              letterSpacing: '1px',
-              textTransform: 'uppercase' as const,
-              cursor: 'pointer',
-              transition: 'border-color 0.2s, color 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)';
-              e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-              e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
-            }}
-          >
-            Explain this
-          </button>
-        )}
+        {/* Close button */}
+        <button
+          onClick={() => setOpen(false)}
+          aria-label="Close panel"
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            width: '26px',
+            height: '26px',
+            borderRadius: '50%',
+            border: '1px solid rgba(255,255,255,0.15)',
+            background: 'transparent',
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: '16px',
+            lineHeight: 1,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'var(--font-mono, monospace)',
+            transition: 'border-color 0.2s, color 0.2s',
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)';
+            e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+            e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
+          }}
+        >
+          ×
+        </button>
+
+        {/* Scrollable content */}
+        <div style={{ padding: '24px', paddingRight: '48px', paddingBottom: '32px' }}>
+
+          {/* Section 1 — Introduction */}
+          <div style={sectionStyle}>
+            <div style={sectionTitleStyle}>How your constellation was computed</div>
+            <p style={bodyTextStyle}>
+              Every 600 milliseconds, the MultiversX network produces a block. Each block is proposed by
+              one validator and confirmed by dozens more across three parallel shards. Your taps during
+              the rhythm game were sent as real transactions to this network.
+            </p>
+            <p style={{ ...bodyTextStyle, marginTop: '10px' }}>
+              The constellation you see was generated deterministically from{' '}
+              <span style={dataValueStyle}>Block #{blockData.nonce.toLocaleString('en-US')}</span>.
+              Every visual element maps to real network data:
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', marginBottom: '20px' }} />
+
+          {/* Section 2 — Central star / proposer */}
+          <div style={sectionStyle}>
+            <div style={sectionTitleStyle}>The central star — block proposer</div>
+            <div style={{ ...dataValueStyle, marginBottom: '6px' }}>
+              BLS: {proposerDisplay}
+            </div>
+            <p style={bodyTextStyle}>
+              The validator that proposed this block becomes your brightest star. Its position is derived
+              by hashing the proposer&apos;s BLS public key with the block nonce — a different block
+              would place it differently.
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', marginBottom: '20px' }} />
+
+          {/* Section 3 — Shard clusters */}
+          <div style={sectionStyle}>
+            {/* Shard 0 */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ ...sectionTitleStyle, display: 'flex', alignItems: 'center' }}>
+                <ShardDot color={SHARD_AMBER} />
+                Shard 0 — {shard0Count} validators
+              </div>
+              <p style={bodyTextStyle}>
+                Each star represents a validator that participated in this block&apos;s consensus. Stars are
+                colored by shard: amber for Shard 0, teal for Shard 1, coral for Shard 2. Each
+                validator&apos;s position is seeded from their BLS key XORed with the block nonce, so the
+                same validator appears in a different place every block.
+              </p>
+            </div>
+
+            {/* Shard 1 */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ ...sectionTitleStyle, display: 'flex', alignItems: 'center' }}>
+                <ShardDot color={SHARD_TEAL} />
+                Shard 1 — {shard1Count} validators
+              </div>
+            </div>
+
+            {/* Shard 2 */}
+            <div>
+              <div style={{ ...sectionTitleStyle, display: 'flex', alignItems: 'center' }}>
+                <ShardDot color={SHARD_CORAL} />
+                Shard 2 — {shard2Count} validators
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', marginBottom: '20px' }} />
+
+          {/* Section 4 — Cross-shard paths */}
+          <div style={sectionStyle}>
+            <div style={sectionTitleStyle}>
+              Cross-shard paths — {crossShardPaths} links
+            </div>
+            <div style={{ ...dataValueStyle, marginBottom: '6px' }}>
+              {blockData.txCount.toLocaleString('en-US')} transactions · {gasFormatted} gas
+            </div>
+            <p style={bodyTextStyle}>
+              When a miniblock routes data between shards, it traces a line in the constellation.
+              Solid lines are token transfers. Dashed lines are smart contract calls. The number of
+              cross-shard paths directly determines the complexity of the constellation&apos;s structure.
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', marginBottom: '20px' }} />
+
+          {/* Section 5 — Uniqueness */}
+          <div style={sectionStyle}>
+            <div style={sectionTitleStyle}>Why no two are alike</div>
+            <p style={bodyTextStyle}>
+              The combination of block nonce, proposer identity, validator set, and cross-shard routing
+              creates a fingerprint that is statistically unique. Even consecutive blocks with the same
+              validators produce different constellations because the nonce XOR shifts every position.
+            </p>
+          </div>
+
+        </div>
       </div>
-    </div>
+
+      {/* Toggle button — hidden when panel is open */}
+      {!open && (
+        <button
+          className="tech-hud"
+          onClick={() => setOpen(true)}
+          style={{
+            position: 'fixed',
+            right: '16px',
+            bottom: '56px', // above save bar
+            height: '26px',
+            padding: '0 12px',
+            borderRadius: '13px',
+            border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(5, 5, 16, 0.7)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: '10px',
+            fontFamily: 'var(--font-mono, monospace)',
+            letterSpacing: '1px',
+            textTransform: 'uppercase' as const,
+            cursor: 'pointer',
+            transition: 'border-color 0.2s, color 0.2s',
+            zIndex: 26,
+            pointerEvents: 'auto',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)';
+            e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+            e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
+          }}
+        >
+          What am I looking at?
+        </button>
+      )}
+    </>
   );
 }
