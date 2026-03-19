@@ -94,10 +94,12 @@ export default function SavePanel({
           left: 0,
           right: 0,
           textAlign: 'center',
-          padding: '0 clamp(200px, 25vw, 300px) 0 16px',
+          paddingLeft: '16px',
+          paddingRight: '16px',
           pointerEvents: 'none',
         }}
       >
+        <div style={{ maxWidth: '500px', margin: '0 auto' }}>
         <p
           style={{
             fontSize: '10px',
@@ -125,6 +127,7 @@ export default function SavePanel({
         >
           Save it now. Mint it onchain when Supernova goes live.
         </p>
+        </div>
       </div>
 
       <div

@@ -49,6 +49,8 @@ export default function HomePage() {
   const [gameState, setGameState] = useState<GameState>('loading');
   const [session, setSession] = useState<GameSession | null>(null);
   const [accuracy, setAccuracy] = useState(0);
+  const [lastTapAccuracy, setLastTapAccuracy] = useState<number | undefined>(undefined);
+  const [roundProgress, setRoundProgress] = useState(0);
   const [tapCount, setTapCount] = useState(0);
   const [txCount, setTxCount] = useState(0);
   const [currentBlock, setCurrentBlock] = useState(0);
@@ -79,6 +81,10 @@ export default function HomePage() {
   const accuracySamples = useRef<number[]>([]);
   // Timestamp when rhythm mode started — used for 1s grace period
   const rhythmStartedAtRef = useRef<number>(0);
+  // Timestamp when the current round started — used for the progress ring
+  const roundStartTimeRef = useRef<number>(0);
+  // rAF handle for the round progress update loop
+  const roundProgressRafRef = useRef<number>(0);
   // Timer ref for the periodic music→BlockSync sync nudge
   const musicSyncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -217,9 +223,26 @@ export default function HomePage() {
       setTapCount(0);
       setTxCount(0);
       setAccuracy(0);
+      setLastTapAccuracy(undefined);
+      setRoundProgress(0);
       accuracySamples.current = [];
       // Record when rhythm started for the 1s grace period
-      rhythmStartedAtRef.current = performance.now();
+      const rhythmNow = performance.now();
+      rhythmStartedAtRef.current = rhythmNow;
+      // Record round start time for progress ring
+      roundStartTimeRef.current = rhythmNow;
+
+      // Start rAF loop to drive the round progress ring
+      const tickProgress = () => {
+        const elapsed = performance.now() - roundStartTimeRef.current;
+        const progress = Math.min(elapsed / BON_CONFIG.roundDuration, 1);
+        setRoundProgress(progress);
+        if (progress < 1) {
+          roundProgressRafRef.current = requestAnimationFrame(tickProgress);
+        }
+      };
+      if (roundProgressRafRef.current) cancelAnimationFrame(roundProgressRafRef.current);
+      roundProgressRafRef.current = requestAnimationFrame(tickProgress);
 
       // Snap the pulse track's playhead to 0 so the music downbeat
       // locks to the first beat BlockSync fires from this moment.
@@ -308,6 +331,7 @@ export default function HomePage() {
 
     setTapCount(currentTapCount);
     setAccuracy(Math.round(avgAccuracy));
+    setLastTapAccuracy(tapAccuracy);
 
     // Register visual feedback
     if (experienceRef.current) {
@@ -362,6 +386,13 @@ export default function HomePage() {
       clearTimeout(roundTimerRef.current);
       roundTimerRef.current = null;
     }
+
+    // Stop round progress rAF loop
+    if (roundProgressRafRef.current) {
+      cancelAnimationFrame(roundProgressRafRef.current);
+      roundProgressRafRef.current = 0;
+    }
+    setRoundProgress(1);
 
     // Stop periodic music→BlockSync sync nudge
     if (musicSyncTimerRef.current) {
@@ -487,6 +518,11 @@ export default function HomePage() {
       clearInterval(musicSyncTimerRef.current);
       musicSyncTimerRef.current = null;
     }
+    // Stop progress rAF loop
+    if (roundProgressRafRef.current) {
+      cancelAnimationFrame(roundProgressRafRef.current);
+      roundProgressRafRef.current = 0;
+    }
     audioManager.reset();
     // init() is a no-op if already initialized. Called here so that if the Audio
     // elements were somehow destroyed, they get recreated before playIntro().
@@ -495,6 +531,8 @@ export default function HomePage() {
     setGameState('gate');
     setSession(null);
     setAccuracy(0);
+    setLastTapAccuracy(undefined);
+    setRoundProgress(0);
     setTapCount(0);
     setTxCount(0);
     setConstellationData(null);
@@ -573,6 +611,8 @@ export default function HomePage() {
           gameState === 'resolving' ||
           gameState === 'reveal'
         }
+        roundProgress={roundProgress}
+        lastTapAccuracy={lastTapAccuracy}
       />
 
       {/* Game instructions — brief overlay at rhythm start */}
