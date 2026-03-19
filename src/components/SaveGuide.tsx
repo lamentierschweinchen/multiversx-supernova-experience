@@ -6,22 +6,23 @@ interface SaveGuideProps {
   /** Mount the component when the save state begins. The 4s internal delay
    *  lets the constellation explainer finish before the star starts moving. */
   visible: boolean;
-  /** Fired once the star reaches the save bar. Use it to add a transient
-   *  glow class to the bar's container. */
+  /** Fired once the star reaches the save bar. Use it to highlight the Save
+   *  button. */
   onArrive?: () => void;
 }
 
 /**
  * SaveGuide
  *
- * A small glowing star dot that flies from viewport center down to the save
- * bar after the constellation explainer has had 4 seconds to finish.
+ * A small glowing star dot that flies from viewport center, arcing slightly
+ * right, and landing on the Save button (bottom-left of the save bar) after
+ * the constellation explainer has had 4 seconds to finish.
  *
  * Lifecycle:
  *   0 s  — component mounts (visible = true), dot hidden
  *   4 s  — dot appears at viewport center, animation begins
- *   5.5 s— dot arrives at save bar, onArrive fires, pulse flash plays
- *   6 s  — dot fades out completely
+ *   6.5 s— dot arrives at save bar (4s + 2.5s travel), onArrive fires, pulse flash plays
+ *   7 s  — dot fades out completely
  */
 export default function SaveGuide({ visible, onArrive }: SaveGuideProps) {
   const [phase, setPhase] = useState<'hidden' | 'flying' | 'arrived' | 'gone'>('hidden');
@@ -39,16 +40,16 @@ export default function SaveGuide({ visible, onArrive }: SaveGuideProps) {
       setPhase('flying');
     }, 4000);
 
-    // 4 s + 1500 ms travel = 5500 ms: star arrives
+    // 4 s + 2500 ms travel = 6500 ms: star arrives at Save button
     const t2 = setTimeout(() => {
       setPhase('arrived');
       onArriveRef.current?.();
-    }, 5500);
+    }, 6500);
 
-    // 5500 ms + 500 ms flash = 6000 ms: fade out
+    // 6500 ms + 500 ms flash = 7000 ms: fade out
     const t3 = setTimeout(() => {
       setPhase('gone');
-    }, 6000);
+    }, 7000);
 
     return () => {
       clearTimeout(t1);
@@ -58,6 +59,21 @@ export default function SaveGuide({ visible, onArrive }: SaveGuideProps) {
   }, [visible]);
 
   if (!visible || phase === 'hidden' || phase === 'gone') return null;
+
+  /*
+   * The save bar is fixed at the bottom of the screen. The Save button is the
+   * first button on the right-hand group, which sits roughly at 70% from the
+   * left edge of the viewport. We arc from center (50%) toward that point.
+   *
+   * The dot is anchored at left:50%, top:50% (viewport center) via CSS.
+   * The keyframe animation translates it to its destination:
+   *   - X: from 0 → ~+20vw (arcing right toward the Save button area)
+   *   - Y: from 0 → ~+50vh + 22px (bottom of viewport, save bar height offset)
+   *
+   * The arc goes slightly right then curves to land on the Save button
+   * (approximately right: clamp(1rem,3vw,2rem) + ~85px from right edge,
+   * which works out to roughly right-of-center).
+   */
 
   return (
     <>
@@ -72,36 +88,35 @@ export default function SaveGuide({ visible, onArrive }: SaveGuideProps) {
             transform: translate(-50%, -50%);
             opacity: 0;
           }
-          8% {
+          5% {
             opacity: 1;
           }
-          /* Gentle sine-wave wobble on X while moving down */
-          25% {
-            transform: translate(calc(-50% + 18px), calc(-50% + 25vh));
+          /* Arc outward to the right */
+          30% {
+            transform: translate(calc(-50% + 8vw), calc(-50% + 20vh));
           }
-          50% {
-            transform: translate(calc(-50% - 14px), calc(-50% + 50vh));
+          60% {
+            transform: translate(calc(-50% + 16vw), calc(-50% + 38vh));
           }
-          75% {
-            transform: translate(calc(-50% + 8px), calc(-50% + 75vh));
-          }
-          90% {
+          85% {
+            transform: translate(calc(-50% + 20vw), calc(-50% + 47vh));
             opacity: 1;
           }
           100% {
-            transform: translate(-50%, calc(-50% + 50vh + 22px));
-            opacity: 0.9;
+            /* Land on the Save button area — right side of center, bottom bar */
+            transform: translate(calc(-50% + 20vw), calc(-50% + 50vh + 22px));
+            opacity: 0.95;
           }
         }
 
         @keyframes save-guide-arrived-pulse {
           0%   { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
-          40%  { transform: translate(-50%, -50%) scale(2.8); opacity: 0.6; }
+          35%  { transform: translate(-50%, -50%) scale(3);   opacity: 0.7; }
           100% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
         }
 
         @keyframes save-guide-trail {
-          0%   { opacity: 0.35; }
+          0%   { opacity: 0.6; }
           100% { opacity: 0; }
         }
       `}</style>
@@ -111,9 +126,8 @@ export default function SaveGuide({ visible, onArrive }: SaveGuideProps) {
         style={{
           position: 'fixed',
           /*
-           * Anchor at viewport center horizontally, top half vertically.
-           * The keyframe animation translates downward from here to the
-           * bottom-center where the save bar lives (approx 50vh + ~22px).
+           * Anchor at viewport center. The keyframe animation translates the
+           * dot down and to the right so it lands on the Save button.
            */
           left: '50%',
           top: '50%',
@@ -123,47 +137,47 @@ export default function SaveGuide({ visible, onArrive }: SaveGuideProps) {
           zIndex: 60,
         }}
       >
-        {/* The star dot itself */}
+        {/* The star dot itself — 12px, brighter glow */}
         <div
           style={{
             position: 'absolute',
-            width: '8px',
-            height: '8px',
+            width: '12px',
+            height: '12px',
             borderRadius: '50%',
             background: '#ffffff',
             boxShadow: [
-              '0 0 4px 2px rgba(255, 255, 255, 0.9)',
-              '0 0 10px 4px rgba(120, 240, 255, 0.7)',
-              '0 0 20px 8px rgba(80, 200, 255, 0.4)',
+              '0 0 6px 3px rgba(255, 255, 255, 0.95)',
+              '0 0 14px 6px rgba(80, 230, 255, 0.85)',
+              '0 0 28px 12px rgba(40, 190, 255, 0.5)',
             ].join(', '),
             animation:
               phase === 'flying'
-                ? 'save-guide-fly 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+                ? 'save-guide-fly 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards'
                 : phase === 'arrived'
                   ? 'save-guide-arrived-pulse 0.5s ease-out forwards'
                   : undefined,
           }}
         />
 
-        {/* Trailing copies — offset in time to create a comet-tail effect */}
+        {/* Trailing copies — more visible comet-tail effect */}
         {phase === 'flying' && (
           <>
             {[
-              { delay: '0.06s', opacity: 0.5, scale: 0.7 },
-              { delay: '0.12s', opacity: 0.3, scale: 0.5 },
-              { delay: '0.20s', opacity: 0.15, scale: 0.35 },
+              { delay: '0.07s', opacity: 0.65, scale: 0.72 },
+              { delay: '0.15s', opacity: 0.45, scale: 0.52 },
+              { delay: '0.25s', opacity: 0.28, scale: 0.38 },
             ].map(({ delay, opacity, scale }, i) => (
               <div
                 key={i}
                 style={{
                   position: 'absolute',
-                  width: `${8 * scale}px`,
-                  height: `${8 * scale}px`,
+                  width: `${12 * scale}px`,
+                  height: `${12 * scale}px`,
                   borderRadius: '50%',
                   background: '#ffffff',
-                  boxShadow: `0 0 ${6 * scale}px ${3 * scale}px rgba(120, 240, 255, ${opacity})`,
+                  boxShadow: `0 0 ${8 * scale}px ${4 * scale}px rgba(80, 230, 255, ${opacity})`,
                   opacity,
-                  animation: `save-guide-fly 1.5s cubic-bezier(0.4, 0, 0.2, 1) ${delay} forwards`,
+                  animation: `save-guide-fly 2.5s cubic-bezier(0.4, 0, 0.2, 1) ${delay} forwards`,
                 }}
               />
             ))}

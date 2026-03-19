@@ -419,8 +419,30 @@ export class RhythmScene {
   registerTap(accuracy: number): void {
     const orbPos = this.orbMesh.position;
 
-    if (accuracy > 0.8) {
-      // GREAT tap
+    if (accuracy > 0.95) {
+      // PERFECT tap — gold/amber photon
+      this.orbTargetScale = this.orbBaseScale * 1.6;
+      this.orbLight.intensity = 22;
+      this.orbLight.color.set(0xffd700);
+
+      this.orbMaterial.uniforms.uPulse.value = 1.0;
+      this.pulseGlowBoost = Math.max(this.pulseGlowBoost, 6.0);
+
+      const burstColor = new THREE.Color(0xffd700);
+      this.particles.emitBurst(orbPos.x, orbPos.y, orbPos.z, 100, burstColor, 9);
+      this.particles.intensifyNear(orbPos.x, orbPos.y, orbPos.z, 12, 1.2);
+      this.particles.pulse(1.8);
+
+      this.spawnShockwaveVisual(orbPos, 22, 14);
+      this.particles.emitShockwave(orbPos.x, orbPos.y, orbPos.z, 28, 16);
+
+      this.energy = Math.min(this.energy + 0.2, 2.0);
+      this.flashTimer = 0.18;
+      this.flashColor.set(0xffd700);
+      this.spawnTxPhoton(new THREE.Color(0xffd700));
+
+    } else if (accuracy > 0.85) {
+      // GREAT tap — bright cyan-white photon
       this.orbTargetScale = this.orbBaseScale * 1.6;
       this.orbLight.intensity = 18;
       this.orbLight.color.set(0x88ccff);
@@ -439,10 +461,11 @@ export class RhythmScene {
       this.energy = Math.min(this.energy + 0.15, 2.0);
       this.flashTimer = 0.15;
       this.flashColor.set(0x88ccff);
-      this.spawnTxPhoton(true);
+      // Bright cyan-white: near-white with a cyan tint
+      this.spawnTxPhoton(new THREE.Color(0xc8f0ff));
 
     } else if (accuracy > 0.4) {
-      // OK tap
+      // OK tap — dimmer blue photon
       this.orbTargetScale = this.orbBaseScale * 1.35;
       this.orbLight.intensity = 10;
 
@@ -463,10 +486,10 @@ export class RhythmScene {
       this.energy = Math.min(this.energy + 0.05, 2.0);
       this.flashTimer = 0.1;
       this.flashColor.set(0x4488cc);
-      this.spawnTxPhoton(false);
+      this.spawnTxPhoton(null);
 
     } else {
-      // MISS — field darkens
+      // MISS — no photon, field darkens
       this.particles.setDarkenFactor(0.8);
       this.orbTargetScale = this.orbBaseScale * 0.85;
       this.orbLight.intensity = 1;
@@ -491,7 +514,12 @@ export class RhythmScene {
     });
   }
 
-  private spawnTxPhoton(onBeat: boolean): void {
+  /**
+   * Spawn a transaction photon.
+   * @param color  THREE.Color to use, or null for the default dimmer blue (ok tap).
+   *               Pass a bright color for great/perfect taps.
+   */
+  private spawnTxPhoton(color: THREE.Color | null): void {
     const orbPos = this.orbMesh.position;
 
     const theta = Math.random() * Math.PI * 2;
@@ -503,14 +531,20 @@ export class RhythmScene {
     const speed = PHOTON_SPEED * (0.8 + Math.random() * 0.4);
 
     let r: number, g: number, b: number;
-    if (onBeat) {
-      r = 0.7 + Math.random() * 0.3;
-      g = 0.9 + Math.random() * 0.1;
-      b = 1.0;
+    let brightness: number;
+
+    if (color !== null) {
+      // Use the supplied color directly; treat it as a bright photon
+      r = color.r;
+      g = color.g;
+      b = color.b;
+      brightness = 1.0;
     } else {
+      // Dimmer blue — ok tap
       r = 0.3 + Math.random() * 0.15;
       g = 0.5 + Math.random() * 0.2;
       b = 0.8 + Math.random() * 0.2;
+      brightness = 0.6;
     }
 
     const photon: TxPhoton = {
@@ -519,7 +553,7 @@ export class RhythmScene {
       vy: dy * speed,
       vz: dz * speed,
       age: 0,
-      brightness: onBeat ? 1.0 : 0.6,
+      brightness,
       r, g, b,
       prevX: orbPos.x, prevY: orbPos.y, prevZ: orbPos.z,
     };

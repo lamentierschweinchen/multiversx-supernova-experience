@@ -50,18 +50,35 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
     >
       <p
         style={{
-          fontSize: '12px',
+          fontSize: '14px',
           fontWeight: 500,
           letterSpacing: '2px',
           textTransform: 'uppercase',
           color: 'rgba(255, 255, 255, 0.6)',
           fontFamily: 'var(--font-mono, monospace)',
           textAlign: 'center',
-          textShadow: '0 0 12px rgba(0,0,0,0.8), 0 0 24px rgba(0,0,0,0.5)',
+          textShadow:
+            '0 2px 8px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.7)',
           margin: 0,
         }}
       >
         TAP ON THE PULSE
+      </p>
+      <p
+        style={{
+          fontSize: '10px',
+          fontWeight: 400,
+          letterSpacing: '1.5px',
+          textTransform: 'uppercase',
+          color: 'rgba(255, 255, 255, 0.38)',
+          fontFamily: 'var(--font-mono, monospace)',
+          textAlign: 'center',
+          textShadow:
+            '0 2px 8px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.7)',
+          marginTop: '8px',
+        }}
+      >
+        EVERY TAP IS A TRANSACTION ON THE NETWORK
       </p>
     </div>
   );

@@ -60,6 +60,8 @@ export default function HomePage() {
   const [showInstructions, setShowInstructions] = useState(false);
   // Transient flag set by SaveGuide.onArrive to flash-glow the save bar buttons
   const [saveBarGlowing, setSaveBarGlowing] = useState(false);
+  // Transient flag to highlight specifically the Save button for 1.5s on arrival
+  const [highlightSave, setHighlightSave] = useState(false);
 
   // Refs for mutable state accessible in callbacks
   const blockSyncRef = useRef<BlockSync | null>(null);
@@ -94,7 +96,7 @@ export default function HomePage() {
   useEffect(() => {
     if (gameState === 'rhythm') {
       setShowInstructions(true);
-      const timer = setTimeout(() => setShowInstructions(false), 4000);
+      const timer = setTimeout(() => setShowInstructions(false), 6000);
       return () => clearTimeout(timer);
     } else {
       setShowInstructions(false);
@@ -239,7 +241,7 @@ export default function HomePage() {
         }
       }, 2000);
 
-      // Set round timer — starts NOW after warp completes, full 30s
+      // Set round timer — 27s round, ends before the kick drum at ~28s in the pulse track
       roundTimerRef.current = setTimeout(() => {
         endRound();
       }, BON_CONFIG.roundDuration);
@@ -461,11 +463,13 @@ export default function HomePage() {
   }, []);
 
   // ---------------------------------------------------------------
-  // SaveGuide arrival callback — briefly glows the save bar
+  // SaveGuide arrival callback — glows the save bar and highlights Save button
   // ---------------------------------------------------------------
   const handleSaveGuideArrive = useCallback(() => {
     setSaveBarGlowing(true);
     setTimeout(() => setSaveBarGlowing(false), 800);
+    setHighlightSave(true);
+    setTimeout(() => setHighlightSave(false), 1500);
   }, []);
 
   // ---------------------------------------------------------------
@@ -601,6 +605,7 @@ export default function HomePage() {
             onExportPNG={handleExportPNG}
             onPlayAgain={handlePlayAgain}
             visible={gameState === 'save'}
+            highlightSave={highlightSave}
           />
         </div>
       )}

@@ -49,15 +49,18 @@ function useAnimatedNumber(target: number, duration: number = 300): number {
 
 // Dark halo for text rendered over the canvas
 const textShadow = '0 0 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)';
+const strongTextShadow =
+  '0 2px 12px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.9), 0 0 60px rgba(0,0,0,0.7)';
 
 export default function HUD({
   accuracy,
-  tapCount,
+  tapCount: _tapCount,
   txCount,
   blockNumber,
   visible,
 }: HUDProps) {
   const animatedAccuracy = useAnimatedNumber(accuracy);
+  const animatedTxCount = useAnimatedNumber(txCount);
   const [opacity, setOpacity] = useState(0);
 
   useEffect(() => {
@@ -115,19 +118,46 @@ export default function HUD({
         </div>
       </div>
 
-      {/* Top-right: TX count */}
+      {/* Bottom-center: TX count — the main score */}
       <div
         style={{
           position: 'absolute',
-          top: 'max(24px, env(safe-area-inset-top, 24px))',
-          right: '28px',
-          textAlign: 'right',
+          bottom: 'clamp(60px, 10vh, 80px)',
+          left: 0,
+          right: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          userSelect: 'none',
+          pointerEvents: 'none',
         }}
       >
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'baseline', justifyContent: 'flex-end' }}>
-          <span style={valueStyle}>{txCount.toLocaleString('en-US')}</span>
-          <span style={labelStyle}>Transactions</span>
-        </div>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono, monospace)',
+            fontSize: '24px',
+            fontWeight: 600,
+            color: 'rgba(255, 255, 255, 0.92)',
+            letterSpacing: '1px',
+            lineHeight: 1,
+            textShadow: strongTextShadow,
+          }}
+        >
+          {Math.round(animatedTxCount).toLocaleString('en-US')}
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono, monospace)',
+            fontSize: '10px',
+            color: 'rgba(255, 255, 255, 0.5)',
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+            marginTop: '4px',
+            textShadow,
+          }}
+        >
+          TRANSACTIONS
+        </span>
       </div>
     </div>
   );

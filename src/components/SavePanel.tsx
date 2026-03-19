@@ -9,6 +9,8 @@ interface SavePanelProps {
   onExportPNG: () => void;
   onPlayAgain: () => void;
   visible: boolean;
+  /** When true, applies a cyan glow highlight to the Save button. */
+  highlightSave?: boolean;
 }
 
 function formatNumber(n: number): string {
@@ -54,6 +56,7 @@ export default function SavePanel({
   onExportPNG,
   onPlayAgain,
   visible,
+  highlightSave = false,
 }: SavePanelProps) {
   const [copied, setCopied] = useState(false);
 
@@ -175,9 +178,11 @@ export default function SavePanel({
         >
           {/* Save */}
           <button
+            id="save-button"
             onClick={onExportPNG}
             title="Save Image"
             style={buttonBase}
+            className={highlightSave ? 'save-button-highlight' : undefined}
             onMouseEnter={handleButtonEnter}
             onMouseLeave={handleButtonLeave}
           >

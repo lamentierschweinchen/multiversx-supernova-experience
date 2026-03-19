@@ -174,7 +174,7 @@ export const BON_CONFIG = {
   apiUrl: 'https://api.battleofnodes.com',
   explorerUrl: 'https://explorer.battleofnodes.com',
   targetBlockTime: 600, // ms
-  roundDuration: 30_000, // ms
+  roundDuration: 27_000, // ms — 27s round, ends before the kick drum at ~28s in the pulse track
   maxTaps: 50,
   rateLimit: 5, // taps per second
   txGasLimit: 50_000n,
