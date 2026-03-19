@@ -113,7 +113,7 @@ export default function ConstellationPage() {
           justifyContent: 'center',
           background: '#000',
           color: '#fff',
-          fontFamily: 'var(--font-geist-mono, monospace)',
+          fontFamily: 'var(--font-mono, monospace)',
           gap: '1.5rem',
         }}
       >
@@ -161,7 +161,7 @@ export default function ConstellationPage() {
           <p
             className="animate-pulse-loading"
             style={{
-              fontFamily: 'var(--font-geist-mono, monospace)',
+              fontFamily: 'var(--font-mono, monospace)',
               fontSize: '1rem',
               opacity: 0.5,
               letterSpacing: '0.1em',
@@ -199,7 +199,7 @@ export default function ConstellationPage() {
               marginTop: '0.25rem',
               fontSize: '0.75rem',
               opacity: 0.4,
-              fontFamily: 'var(--font-geist-mono, monospace)',
+              fontFamily: 'var(--font-mono, monospace)',
             }}
           >
             {constellationData?.stars.length ?? 0} validators &middot;{' '}
@@ -236,7 +236,7 @@ export default function ConstellationPage() {
             color: 'rgba(255, 255, 255, 0.6)',
             textDecoration: 'none',
             fontSize: '0.8125rem',
-            fontFamily: 'var(--font-geist-mono, monospace)',
+            fontFamily: 'var(--font-mono, monospace)',
             transition: 'color 0.2s, border-color 0.2s',
           }}
           onMouseEnter={(e) => {

@@ -137,6 +137,22 @@ interface ShockwaveVisual {
   maxRadius: number;
 }
 
+// Transaction photon — a light particle that flies outward from the orb
+// representing a transaction being sent into the network
+interface TxPhoton {
+  x: number; y: number; z: number;       // current position
+  vx: number; vy: number; vz: number;    // velocity (direction * speed)
+  age: number;                            // seconds alive
+  brightness: number;                     // 0-1 initial brightness
+  r: number; g: number; b: number;       // color
+  // Trail: previous position for line segment
+  prevX: number; prevY: number; prevZ: number;
+}
+
+const MAX_PHOTONS = 50;
+const PHOTON_LIFETIME = 2.0; // seconds
+const PHOTON_SPEED = 12; // units/sec
+
 export class RhythmScene {
   readonly scene: THREE.Scene;
   private particles: ParticleSystem;
@@ -176,6 +192,15 @@ export class RhythmScene {
 
   // Shockwave ring visuals
   private shockwaveVisuals: ShockwaveVisual[] = [];
+
+  // Transaction photon system
+  private photons: TxPhoton[] = [];
+  private photonPoints: THREE.Points;
+  private photonGeometry: THREE.BufferGeometry;
+  private photonMaterial: THREE.PointsMaterial;
+  private photonTrailLines: THREE.LineSegments;
+  private photonTrailGeometry: THREE.BufferGeometry;
+  private photonTrailMaterial: THREE.LineBasicMaterial;
 
   // Time
   private time = 0;
@@ -254,6 +279,48 @@ export class RhythmScene {
 
     // Arrange particles in a sphere around the orb
     this.particles.arrangeSphere(15);
+
+    // ----- Transaction Photon System -----
+    // Points for the photon heads
+    const photonPositions = new Float32Array(MAX_PHOTONS * 3);
+    const photonColors = new Float32Array(MAX_PHOTONS * 3);
+    const photonSizes = new Float32Array(MAX_PHOTONS);
+    this.photonGeometry = new THREE.BufferGeometry();
+    this.photonGeometry.setAttribute('position', new THREE.BufferAttribute(photonPositions, 3));
+    this.photonGeometry.setAttribute('color', new THREE.BufferAttribute(photonColors, 3));
+    this.photonGeometry.setAttribute('size', new THREE.BufferAttribute(photonSizes, 1));
+    this.photonGeometry.setDrawRange(0, 0);
+
+    this.photonMaterial = new THREE.PointsMaterial({
+      size: 0.35,
+      vertexColors: true,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+    });
+    this.photonPoints = new THREE.Points(this.photonGeometry, this.photonMaterial);
+    this.photonPoints.frustumCulled = false;
+    this.scene.add(this.photonPoints);
+
+    // Line segments for photon trails (each photon = 2 vertices = 1 line segment)
+    const trailPositions = new Float32Array(MAX_PHOTONS * 2 * 3); // 2 vertices per segment
+    const trailColors = new Float32Array(MAX_PHOTONS * 2 * 3);
+    this.photonTrailGeometry = new THREE.BufferGeometry();
+    this.photonTrailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+    this.photonTrailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+    this.photonTrailGeometry.setDrawRange(0, 0);
+
+    this.photonTrailMaterial = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      linewidth: 1,
+    });
+    this.photonTrailLines = new THREE.LineSegments(this.photonTrailGeometry, this.photonTrailMaterial);
+    this.photonTrailLines.frustumCulled = false;
+    this.scene.add(this.photonTrailLines);
   }
 
   private createNebula(): void {
@@ -387,6 +454,9 @@ export class RhythmScene {
       this.flashTimer = 0.15;
       this.flashColor.set(0x88ccff);
 
+      // Transaction photon — on-beat, bright cyan-white
+      this.spawnTxPhoton(true);
+
     } else if (accuracy > 0.4) {
       // OK tap — moderate response
       this.orbTargetScale = this.orbBaseScale * 1.25;
@@ -405,6 +475,9 @@ export class RhythmScene {
       this.flashTimer = 0.1;
       this.flashColor.set(0x4488cc);
 
+      // Transaction photon — off-beat, dimmer blue
+      this.spawnTxPhoton(false);
+
     } else {
       // MISS — field darkens
       this.particles.setDarkenFactor(0.8);
@@ -416,6 +489,8 @@ export class RhythmScene {
 
       // Brief dark flash
       this.ambientLight.intensity = 0.02;
+
+      // No photon for misses (accuracy <= 0.3 normalized, which is <= 0.4 here)
     }
   }
 
@@ -435,6 +510,128 @@ export class RhythmScene {
       speed,
       maxRadius,
     });
+  }
+
+  /** Spawn a transaction photon from the orb outward */
+  private spawnTxPhoton(onBeat: boolean): void {
+    const orbPos = this.orbMesh.position;
+
+    // Random radial direction in 3D (biased toward the camera plane for visibility)
+    const theta = Math.random() * Math.PI * 2;
+    const phi = (Math.random() - 0.5) * Math.PI * 0.7; // slightly flattened
+    const dx = Math.cos(theta) * Math.cos(phi);
+    const dy = Math.sin(phi);
+    const dz = Math.sin(theta) * Math.cos(phi);
+
+    const speed = PHOTON_SPEED * (0.8 + Math.random() * 0.4);
+
+    // Color: cyan-white for on-beat, dimmer blue for off-beat
+    let r: number, g: number, b: number;
+    if (onBeat) {
+      // Cyan-white
+      r = 0.7 + Math.random() * 0.3;
+      g = 0.9 + Math.random() * 0.1;
+      b = 1.0;
+    } else {
+      // Dimmer blue
+      r = 0.3 + Math.random() * 0.15;
+      g = 0.5 + Math.random() * 0.2;
+      b = 0.8 + Math.random() * 0.2;
+    }
+
+    const photon: TxPhoton = {
+      x: orbPos.x, y: orbPos.y, z: orbPos.z,
+      vx: dx * speed,
+      vy: dy * speed,
+      vz: dz * speed,
+      age: 0,
+      brightness: onBeat ? 1.0 : 0.6,
+      r, g, b,
+      prevX: orbPos.x, prevY: orbPos.y, prevZ: orbPos.z,
+    };
+
+    // If pool is full, recycle oldest
+    if (this.photons.length >= MAX_PHOTONS) {
+      this.photons.shift();
+    }
+    this.photons.push(photon);
+  }
+
+  /** Update all transaction photons */
+  private updatePhotons(dt: number): void {
+    const posArr = this.photonGeometry.getAttribute('position') as THREE.BufferAttribute;
+    const colArr = this.photonGeometry.getAttribute('color') as THREE.BufferAttribute;
+    const sizeArr = this.photonGeometry.getAttribute('size') as THREE.BufferAttribute;
+    const trailPosArr = this.photonTrailGeometry.getAttribute('position') as THREE.BufferAttribute;
+    const trailColArr = this.photonTrailGeometry.getAttribute('color') as THREE.BufferAttribute;
+
+    // Remove dead photons
+    this.photons = this.photons.filter(p => p.age < PHOTON_LIFETIME);
+
+    for (let i = 0; i < this.photons.length; i++) {
+      const p = this.photons[i];
+
+      // Store previous position for trail
+      p.prevX = p.x;
+      p.prevY = p.y;
+      p.prevZ = p.z;
+
+      // Move
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+
+      // Slight acceleration (photon picks up speed as it escapes)
+      p.vx *= 1.0 + dt * 0.3;
+      p.vy *= 1.0 + dt * 0.3;
+      p.vz *= 1.0 + dt * 0.3;
+
+      p.age += dt;
+
+      // Fade: bright at start, fades out over lifetime
+      const lifeFraction = p.age / PHOTON_LIFETIME;
+      const fade = 1.0 - lifeFraction * lifeFraction; // quadratic fade
+      const alpha = fade * p.brightness;
+
+      // Update point (photon head)
+      const i3 = i * 3;
+      posArr.array[i3] = p.x;
+      posArr.array[i3 + 1] = p.y;
+      posArr.array[i3 + 2] = p.z;
+      colArr.array[i3] = p.r * alpha;
+      colArr.array[i3 + 1] = p.g * alpha;
+      colArr.array[i3 + 2] = p.b * alpha;
+      sizeArr.array[i] = 0.35 * (1.0 + (1.0 - lifeFraction) * 0.5); // slightly larger when young
+
+      // Update trail (line from prev to current, with faded tail)
+      const ti = i * 6; // 2 vertices * 3 components
+      // Trail head (current position, brighter)
+      trailPosArr.array[ti] = p.x;
+      trailPosArr.array[ti + 1] = p.y;
+      trailPosArr.array[ti + 2] = p.z;
+      trailColArr.array[ti] = p.r * alpha * 0.8;
+      trailColArr.array[ti + 1] = p.g * alpha * 0.8;
+      trailColArr.array[ti + 2] = p.b * alpha * 0.8;
+
+      // Trail tail (previous position, dimmer)
+      // Extend the trail behind based on velocity for a more visible streak
+      const trailLen = 0.08; // seconds of trail
+      trailPosArr.array[ti + 3] = p.x - p.vx * trailLen;
+      trailPosArr.array[ti + 4] = p.y - p.vy * trailLen;
+      trailPosArr.array[ti + 5] = p.z - p.vz * trailLen;
+      trailColArr.array[ti + 3] = p.r * alpha * 0.2;
+      trailColArr.array[ti + 4] = p.g * alpha * 0.2;
+      trailColArr.array[ti + 5] = p.b * alpha * 0.2;
+    }
+
+    posArr.needsUpdate = true;
+    colArr.needsUpdate = true;
+    sizeArr.needsUpdate = true;
+    trailPosArr.needsUpdate = true;
+    trailColArr.needsUpdate = true;
+
+    this.photonGeometry.setDrawRange(0, this.photons.length);
+    this.photonTrailGeometry.setDrawRange(0, this.photons.length * 2);
   }
 
   /** Update loop */
@@ -512,6 +709,9 @@ export class RhythmScene {
     // Update shockwave visuals
     this.updateShockwaveVisuals(clampedDt);
 
+    // Update transaction photons
+    this.updatePhotons(clampedDt);
+
     // Drift speed increases slightly with energy
     this.particles.setDriftSpeed(0.12 + this.energy * 0.08);
   }
@@ -571,6 +771,11 @@ export class RhythmScene {
       (sw.mesh.material as THREE.Material).dispose();
     }
     this.shockwaveVisuals = [];
+
+    // Clear photons
+    this.photons = [];
+    this.photonGeometry.setDrawRange(0, 0);
+    this.photonTrailGeometry.setDrawRange(0, 0);
   }
 
   dispose(): void {
@@ -588,5 +793,10 @@ export class RhythmScene {
       sw.mesh.geometry.dispose();
       (sw.mesh.material as THREE.Material).dispose();
     }
+    // Dispose photon system
+    this.photonGeometry.dispose();
+    this.photonMaterial.dispose();
+    this.photonTrailGeometry.dispose();
+    this.photonTrailMaterial.dispose();
   }
 }

@@ -42,7 +42,7 @@ export default function LoadingScreen({ visible }: LoadingScreenProps) {
             fontSize: 'clamp(3rem, 10vw, 6rem)',
             fontWeight: 700,
             letterSpacing: '-0.02em',
-            fontFamily: 'var(--font-geist-mono, monospace)',
+            fontFamily: 'var(--font-mono, monospace)',
           }}
           className="gradient-text"
         >

@@ -51,7 +51,7 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
           textTransform: 'uppercase',
           opacity: 0.4,
           marginBottom: '2rem',
-          fontFamily: 'var(--font-geist-mono, monospace)',
+          fontFamily: 'var(--font-mono, monospace)',
         }}
       >
         MultiversX Battle of Nodes
@@ -77,26 +77,16 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
         style={{
           marginTop: '1.5rem',
           fontSize: 'clamp(0.875rem, 2vw, 1.25rem)',
+          fontWeight: 300,
           opacity: 0.5,
           textAlign: 'center',
           maxWidth: '28rem',
-          lineHeight: 1.5,
+          lineHeight: 1.6,
         }}
       >
-        A blockchain that finalizes in 600 milliseconds.
-      </p>
-
-      {/* Secondary subtitle */}
-      <p
-        style={{
-          marginTop: '0.5rem',
-          fontSize: 'clamp(0.75rem, 1.5vw, 1rem)',
-          opacity: 0.35,
-          textAlign: 'center',
-          fontStyle: 'italic',
-        }}
-      >
-        Faster than you can blink.
+        Every 600 milliseconds, a new block.
+        <br />
+        Every block, a new universe.
       </p>
 
       {/* Enter prompt */}
@@ -116,19 +106,11 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
             fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)',
             letterSpacing: '0.15em',
             textTransform: 'uppercase',
-            fontFamily: 'var(--font-geist-mono, monospace)',
+            fontFamily: 'var(--font-mono, monospace)',
           }}
         >
           Enter
         </p>
-        <span
-          style={{
-            fontSize: '1.25rem',
-            lineHeight: 1,
-          }}
-        >
-          &#8595;
-        </span>
       </div>
     </div>
   );

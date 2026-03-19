@@ -74,7 +74,7 @@ export default function HUD({
         inset: 0,
         opacity,
         transition: 'opacity 0.5s ease',
-        fontFamily: 'var(--font-geist-mono, monospace)',
+        fontFamily: 'var(--font-mono, monospace)',
         fontSize: '13px',
       }}
     >

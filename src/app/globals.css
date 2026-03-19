@@ -3,8 +3,8 @@
 @theme inline {
   --color-background: #000000;
   --color-foreground: #ffffff;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
   --color-cyan: #00e5ff;
   --color-purple: #7c3aed;
   --color-green: #23c483;
@@ -25,9 +25,14 @@ body {
   overflow: hidden;
   background: #000;
   color: #fff;
-  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  font-family: var(--font-sans, 'Space Grotesk', system-ui, -apple-system, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Monospace utility for HUD and technical elements */
+.font-mono {
+  font-family: var(--font-mono, 'Space Mono', monospace);
 }
 
 /* Canvas container — full screen behind everything */

@@ -1,21 +1,23 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-sans',
   subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const spaceMono = Space_Mono({
+  variable: '--font-mono',
   subsets: ['latin'],
+  weight: ['400', '700'],
 });
 
 export const metadata: Metadata = {
   title: '600ms: Enter the Supernova',
   description:
-    'A blockchain that finalizes in 600 milliseconds. Feel the rhythm of MultiversX blocks in an interactive experience.',
+    'Every 600 milliseconds, a new block. Every block, a new universe. Feel the rhythm of MultiversX in an interactive experience.',
   openGraph: {
     title: '600ms: Enter the Supernova',
     description:
@@ -56,7 +58,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${spaceGrotesk.variable} ${spaceMono.variable}`}
     >
       <body
         style={{

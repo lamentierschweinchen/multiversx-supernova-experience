@@ -86,7 +86,7 @@ export default function SavePanel({
           border: '1px solid rgba(124, 58, 237, 0.3)',
           borderRadius: '1rem',
           padding: 'clamp(1.25rem, 3vw, 2rem)',
-          fontFamily: 'var(--font-geist-sans, system-ui, sans-serif)',
+          fontFamily: 'var(--font-sans, system-ui, sans-serif)',
         }}
       >
         {/* Constellation name */}
@@ -114,7 +114,7 @@ export default function SavePanel({
             marginTop: '0.75rem',
             fontSize: 'clamp(0.75rem, 1.5vw, 0.8125rem)',
             opacity: 0.6,
-            fontFamily: 'var(--font-geist-mono, monospace)',
+            fontFamily: 'var(--font-mono, monospace)',
           }}
         >
           <span>{constellationData.stars.length} validators</span>
@@ -128,7 +128,7 @@ export default function SavePanel({
             marginTop: '0.75rem',
             fontSize: '0.75rem',
             opacity: 0.35,
-            fontFamily: 'var(--font-geist-mono, monospace)',
+            fontFamily: 'var(--font-mono, monospace)',
             wordBreak: 'break-all',
           }}
         >

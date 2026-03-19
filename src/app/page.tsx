@@ -16,7 +16,9 @@ import { BlockSync } from '@/three/systems/BlockSync';
 import GateOverlay from '@/components/GateOverlay';
 import HUD from '@/components/HUD';
 import SavePanel from '@/components/SavePanel';
+import TechHUD from '@/components/TechHUD';
 import LoadingScreen from '@/components/LoadingScreen';
+import GameInstructions from '@/components/GameInstructions';
 
 // Three.js Experience component — must be loaded client-side only
 const Experience = dynamic(() => import('@/components/Experience'), {
@@ -53,6 +55,7 @@ export default function HomePage() {
   );
   const [blockData, setBlockData] = useState<BlockData | null>(null);
   const [experienceReady, setExperienceReady] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   // Refs for mutable state accessible in callbacks
   const blockSyncRef = useRef<BlockSync | null>(null);
@@ -68,6 +71,8 @@ export default function HomePage() {
   const tapThrottleRef = useRef(createThrottle(BON_CONFIG.rateLimit));
   const roundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accuracySamples = useRef<number[]>([]);
+  // Timestamp when rhythm mode started — used for 1s grace period
+  const rhythmStartedAtRef = useRef<number>(0);
 
   // Keep refs in sync
   useEffect(() => {
@@ -76,6 +81,19 @@ export default function HomePage() {
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  // ---------------------------------------------------------------
+  // Show instructions briefly when rhythm starts
+  // ---------------------------------------------------------------
+  useEffect(() => {
+    if (gameState === 'rhythm') {
+      setShowInstructions(true);
+      const timer = setTimeout(() => setShowInstructions(false), 4000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowInstructions(false);
+    }
+  }, [gameState]);
 
   // ---------------------------------------------------------------
   // Initialize BlockSync + transition from loading to gate
@@ -177,8 +195,10 @@ export default function HomePage() {
       setTxCount(0);
       setAccuracy(0);
       accuracySamples.current = [];
+      // Record when rhythm started for the 1s grace period
+      rhythmStartedAtRef.current = performance.now();
 
-      // Set round timer
+      // Set round timer — starts NOW after warp completes, full 30s
       roundTimerRef.current = setTimeout(() => {
         endRound();
       }, BON_CONFIG.roundDuration);
@@ -189,7 +209,13 @@ export default function HomePage() {
   // Tap handler (rhythm phase)
   // ---------------------------------------------------------------
   const handleTap = useCallback(async () => {
+    // Strict rhythm-only check
     if (gameStateRef.current !== 'rhythm') return;
+
+    // Grace period: ignore taps for the first 1 second after entering rhythm
+    // This prevents the gate-enter click from being interpreted as a tap
+    if (performance.now() - rhythmStartedAtRef.current < 1000) return;
+
     if (!tapThrottleRef.current()) return;
 
     const currentTapCount = (sessionRef.current?.tapCount ?? 0) + 1;
@@ -382,6 +408,7 @@ export default function HomePage() {
     setConstellationData(null);
     setBlockData(null);
     accuracySamples.current = [];
+    rhythmStartedAtRef.current = 0;
   }, []);
 
   // ---------------------------------------------------------------
@@ -389,9 +416,11 @@ export default function HomePage() {
   // ---------------------------------------------------------------
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
-      // Don't capture taps on save panel buttons
+      // Don't capture taps on UI panels
       const target = e.target as HTMLElement;
       if (target.closest('.save-panel')) return;
+      if (target.closest('.gate-overlay')) return;
+      if (target.closest('.tech-hud')) return;
 
       if (gameStateRef.current === 'rhythm') {
         handleTap();
@@ -454,6 +483,9 @@ export default function HomePage() {
         }
       />
 
+      {/* Game instructions — brief overlay at rhythm start */}
+      <GameInstructions visible={showInstructions} />
+
       {/* Save panel — visible after constellation reveal */}
       {blockData && constellationData && (
         <SavePanel
@@ -464,6 +496,15 @@ export default function HomePage() {
           visible={gameState === 'save'}
         />
       )}
+
+      {/* Tech HUD — constellation DNA panel, visible during save state */}
+      <div className="tech-hud">
+        <TechHUD
+          blockData={blockData}
+          constellationData={constellationData}
+          visible={gameState === 'save'}
+        />
+      </div>
 
       {/* Resolving indicator */}
       {gameState === 'resolving' && (
@@ -483,7 +524,7 @@ export default function HomePage() {
             style={{
               fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
               opacity: 0.6,
-              fontFamily: 'var(--font-geist-mono, monospace)',
+              fontFamily: 'var(--font-mono, monospace)',
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
             }}
