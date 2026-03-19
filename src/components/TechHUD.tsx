@@ -9,7 +9,7 @@ interface TechHUDProps {
   visible: boolean;
 }
 
-function truncateHex(hex: string, chars: number = 8): string {
+function truncate(hex: string, chars: number = 4): string {
   if (hex.length <= chars * 2 + 3) return hex;
   return `${hex.slice(0, chars)}...${hex.slice(-chars)}`;
 }
@@ -43,11 +43,13 @@ function getCrossShardPaths(blockData: BlockData): number {
 const SHARD_AMBER = '#e8a849';
 const SHARD_TEAL = '#4ecdc4';
 const SHARD_CORAL = '#e06c75';
+const SOFT_BLUE = '#6b8aaa';
 
 interface HUDLabel {
   id: string;
-  text: string;
-  subtext?: string;
+  title: string;
+  data: string;
+  explain: string;
   color: string;
   dotColor: string;
   finalX: string;
@@ -80,10 +82,26 @@ export default function TechHUD({
   const shard1Count = shardCounts.get(1) ?? 0;
   const shard2Count = shardCounts.get(2) ?? 0;
 
+  // Block hash: use blockData.hash if available, else nonce as hex
+  const hashStr = blockData.hash && blockData.hash.length >= 8
+    ? blockData.hash
+    : blockData.nonce.toString(16).padStart(8, '0');
+  const hashDisplay = truncate(hashStr, 4);
+
+  // Proposer BLS key truncated
+  const proposerDisplay = blockData.proposer && blockData.proposer.length >= 8
+    ? truncate(blockData.proposer, 4)
+    : blockData.proposer ?? '—';
+
+  const totalTxCount = blockData.txCount;
+  const gasFormatted = formatGas(blockData.gasConsumed);
+
   const labels: HUDLabel[] = [
     {
       id: 'blockinfo',
-      text: `BLOCK #${blockData.nonce.toLocaleString('en-US')} \u00B7 ${blockData.txCount} TXS \u00B7 ${formatGas(blockData.gasConsumed)} FUEL`,
+      title: `BLOCK #${blockData.nonce.toLocaleString('en-US')}`,
+      data: `hash: ${hashDisplay}`,
+      explain: 'the moment in time that seeded this constellation',
       color: 'rgba(255, 255, 255, 0.85)',
       dotColor: 'rgba(255, 255, 255, 0.7)',
       finalX: '0px',
@@ -92,17 +110,20 @@ export default function TechHUD({
     },
     {
       id: 'proposer',
-      text: 'ORIGIN',
-      subtext: truncateHex(blockData.proposer, 8),
-      color: SHARD_AMBER,
-      dotColor: SHARD_AMBER,
+      title: 'ORIGIN',
+      data: `bls: ${proposerDisplay}`,
+      explain: 'the validator that led consensus — your central star',
+      color: 'rgba(255, 255, 255, 0.85)',
+      dotColor: 'rgba(255, 255, 255, 0.7)',
       finalX: '-36vw',
       finalY: '-5vh',
       index: 1,
     },
     {
       id: 'shard0',
-      text: `SECTOR 0 \u00B7 ${shard0Count}`,
+      title: 'SECTOR 0',
+      data: `${shard0Count} validators`,
+      explain: "each star's position is unique to this block",
       color: SHARD_AMBER,
       dotColor: SHARD_AMBER,
       finalX: '30vw',
@@ -111,7 +132,9 @@ export default function TechHUD({
     },
     {
       id: 'shard1',
-      text: `SECTOR 1 \u00B7 ${shard1Count}`,
+      title: 'SECTOR 1',
+      data: `${shard1Count} validators`,
+      explain: 'grouped by network shard, colored by sector',
       color: SHARD_TEAL,
       dotColor: SHARD_TEAL,
       finalX: '36vw',
@@ -120,7 +143,9 @@ export default function TechHUD({
     },
     {
       id: 'shard2',
-      text: `SECTOR 2 \u00B7 ${shard2Count}`,
+      title: 'SECTOR 2',
+      data: `${shard2Count} validators`,
+      explain: 'the same validator shifts position every block',
       color: SHARD_CORAL,
       dotColor: SHARD_CORAL,
       finalX: '30vw',
@@ -129,9 +154,11 @@ export default function TechHUD({
     },
     {
       id: 'crossshard',
-      text: `CROSS-SECTOR LINKS: ${crossShardPaths}`,
-      color: 'rgba(255, 255, 255, 0.6)',
-      dotColor: 'rgba(255, 255, 255, 0.5)',
+      title: 'CROSS-SECTOR LINKS',
+      data: `${crossShardPaths} paths \u00B7 ${totalTxCount} txs \u00B7 ${gasFormatted} fuel`,
+      explain: "data routing between shards — the constellation's connecting lines",
+      color: SOFT_BLUE,
+      dotColor: SOFT_BLUE,
       finalX: '0px',
       finalY: '38vh',
       index: 5,
@@ -152,6 +179,7 @@ export default function TechHUD({
     >
       {labels.map((label) => {
         const delay = label.index * 0.1;
+        const explainDelay = delay + 0.3;
         return (
           <div
             key={label.id}
@@ -166,25 +194,27 @@ export default function TechHUD({
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '2px',
+              gap: '3px',
               willChange: 'transform, opacity',
             }}
           >
+            {/* Title line — 11px, opacity 0.8 */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
                 fontFamily: 'var(--font-mono, monospace)',
-                fontSize: '10px',
+                fontSize: '11px',
                 letterSpacing: '1px',
                 textTransform: 'uppercase' as const,
                 color: label.color,
+                opacity: 0.8,
                 textShadow: `0 0 8px ${label.dotColor}40`,
                 whiteSpace: 'nowrap',
               }}
             >
-              {/* Colored dot/pip */}
+              {/* Colored dot pip */}
               <span
                 style={{
                   display: 'inline-block',
@@ -196,23 +226,43 @@ export default function TechHUD({
                   flexShrink: 0,
                 }}
               />
-              <span>{label.text}</span>
+              <span>{label.title}</span>
             </div>
-            {label.subtext && (
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono, monospace)',
-                  fontSize: '9px',
-                  opacity: 0.55,
-                  letterSpacing: '0.5px',
-                  color: label.color,
-                  textShadow: `0 0 8px ${label.dotColor}22`,
-                  paddingLeft: '11px',
-                }}
-              >
-                {label.subtext}
-              </div>
-            )}
+
+            {/* Data line — 10px, opacity 0.6 */}
+            <div
+              style={{
+                fontFamily: 'var(--font-mono, monospace)',
+                fontSize: '10px',
+                letterSpacing: '0.5px',
+                color: label.color,
+                opacity: 0.6,
+                textShadow: `0 0 8px ${label.dotColor}22`,
+                whiteSpace: 'nowrap',
+                paddingLeft: '11px',
+              }}
+            >
+              {label.data}
+            </div>
+
+            {/* Explain line — 9px, opacity 0.35, staggered +0.3s */}
+            <div
+              style={{
+                fontFamily: 'var(--font-mono, monospace)',
+                fontSize: '9px',
+                letterSpacing: '0.4px',
+                color: label.color,
+                maxWidth: '200px',
+                textAlign: 'center',
+                lineHeight: 1.4,
+                paddingLeft: '11px',
+                opacity: show ? 0.35 : 0,
+                transition: `opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${explainDelay}s`,
+                willChange: 'opacity',
+              }}
+            >
+              {label.explain}
+            </div>
           </div>
         );
       })}

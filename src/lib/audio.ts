@@ -55,6 +55,28 @@ class AudioManager {
     }
   }
 
+  /**
+   * Reset the pulse track's playhead to 0 so the next downbeat in the audio
+   * aligns with the visual pulse fired by BlockSync. Call this at the exact
+   * moment BlockSync begins firing beats (i.e. when rhythm state starts).
+   */
+  syncPulseToBeat() {
+    if (this.pulseAudio) {
+      this.pulseAudio.currentTime = 0;
+    }
+  }
+
+  /**
+   * Returns a 0–1 value representing how far through the current beat we are,
+   * based on the pulse track's playback position. 0 = downbeat, 1 = just
+   * before the next downbeat. Beat period is 600 ms (100 BPM).
+   */
+  getBeatPhase(): number {
+    if (!this.pulseAudio) return 0;
+    const beatDuration = 0.6; // seconds — 100 BPM
+    return (this.pulseAudio.currentTime % beatDuration) / beatDuration;
+  }
+
   /** Duck pulse music to 40% for the constellation reveal moment. */
   duckForReveal() {
     if (this.pulseAudio) {

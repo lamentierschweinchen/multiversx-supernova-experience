@@ -16,6 +16,7 @@ import { BlockSync } from '@/three/systems/BlockSync';
 import GateOverlay from '@/components/GateOverlay';
 import HUD from '@/components/HUD';
 import SavePanel from '@/components/SavePanel';
+import SaveGuide from '@/components/SaveGuide';
 import TechHUD from '@/components/TechHUD';
 import LoadingScreen from '@/components/LoadingScreen';
 import GameInstructions from '@/components/GameInstructions';
@@ -57,6 +58,8 @@ export default function HomePage() {
   const [blockData, setBlockData] = useState<BlockData | null>(null);
   const [experienceReady, setExperienceReady] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  // Transient flag set by SaveGuide.onArrive to flash-glow the save bar buttons
+  const [saveBarGlowing, setSaveBarGlowing] = useState(false);
 
   // Refs for mutable state accessible in callbacks
   const blockSyncRef = useRef<BlockSync | null>(null);
@@ -206,6 +209,10 @@ export default function HomePage() {
       accuracySamples.current = [];
       // Record when rhythm started for the 1s grace period
       rhythmStartedAtRef.current = performance.now();
+
+      // Snap the pulse track's playhead to 0 so the music downbeat
+      // locks to the first beat BlockSync fires from this moment.
+      audioManager.syncPulseToBeat();
 
       // Set round timer — starts NOW after warp completes, full 30s
       roundTimerRef.current = setTimeout(() => {
@@ -404,6 +411,14 @@ export default function HomePage() {
   }, []);
 
   // ---------------------------------------------------------------
+  // SaveGuide arrival callback — briefly glows the save bar
+  // ---------------------------------------------------------------
+  const handleSaveGuideArrive = useCallback(() => {
+    setSaveBarGlowing(true);
+    setTimeout(() => setSaveBarGlowing(false), 800);
+  }, []);
+
+  // ---------------------------------------------------------------
   // Export and Play Again
   // ---------------------------------------------------------------
   const handleExportPNG = useCallback(() => {
@@ -501,15 +516,35 @@ export default function HomePage() {
       {/* Game instructions — brief overlay at rhythm start */}
       <GameInstructions visible={showInstructions} />
 
+      {/* Save guide — glowing star that flies to the save bar after reveal */}
+      <SaveGuide
+        visible={gameState === 'save'}
+        onArrive={handleSaveGuideArrive}
+      />
+
+      {/* Inject save-bar-glow keyframes + class once, driven by saveBarGlowing */}
+      <style>{`
+        @keyframes save-bar-button-glow {
+          0%   { box-shadow: 0 0 0 0 rgba(120, 240, 255, 0); border-color: rgba(255,255,255,0.15); }
+          40%  { box-shadow: 0 0 10px 3px rgba(120, 240, 255, 0.6); border-color: rgba(120,240,255,0.7); }
+          100% { box-shadow: 0 0 0 0 rgba(120, 240, 255, 0); border-color: rgba(255,255,255,0.15); }
+        }
+        .save-bar-glowing button {
+          animation: save-bar-button-glow 0.8s ease-out forwards;
+        }
+      `}</style>
+
       {/* Save panel — visible after constellation reveal */}
       {blockData && constellationData && (
-        <SavePanel
-          blockData={blockData}
-          constellationData={constellationData}
-          onExportPNG={handleExportPNG}
-          onPlayAgain={handlePlayAgain}
-          visible={gameState === 'save'}
-        />
+        <div className={saveBarGlowing ? 'save-bar-glowing' : undefined}>
+          <SavePanel
+            blockData={blockData}
+            constellationData={constellationData}
+            onExportPNG={handleExportPNG}
+            onPlayAgain={handlePlayAgain}
+            visible={gameState === 'save'}
+          />
+        </div>
       )}
 
       {/* Tech HUD — constellation DNA annotations, visible during save state */}

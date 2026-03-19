@@ -114,7 +114,7 @@ export default function SavePanel({
             marginTop: '4px',
           }}
         >
-          Save it now. Mint it on-chain when Supernova goes live.
+          Save it now. Mint it onchain when Supernova goes live.
         </p>
       </div>
 
