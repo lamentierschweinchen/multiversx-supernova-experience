@@ -40,11 +40,11 @@ export default function LoadingScreen({ visible }: LoadingScreenProps) {
         <h1
           style={{
             fontSize: 'clamp(3rem, 10vw, 6rem)',
-            fontWeight: 700,
-            letterSpacing: '-0.02em',
-            fontFamily: 'var(--font-mono, monospace)',
+            fontWeight: 800,
+            letterSpacing: '0.04em',
+            fontFamily: 'var(--font-display, sans-serif)',
           }}
-          className="gradient-text"
+          className="gradient-text font-display"
         >
           600ms
         </h1>

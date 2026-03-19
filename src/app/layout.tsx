@@ -1,17 +1,23 @@
 import type { Metadata, Viewport } from 'next';
-import { Space_Grotesk, Space_Mono } from 'next/font/google';
+import { Orbitron, Exo_2, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
-const spaceGrotesk = Space_Grotesk({
+const orbitron = Orbitron({
+  variable: '--font-display',
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+});
+
+const exo2 = Exo_2({
   variable: '--font-sans',
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
 });
 
-const spaceMono = Space_Mono({
+const jetbrainsMono = JetBrains_Mono({
   variable: '--font-mono',
   subsets: ['latin'],
-  weight: ['400', '700'],
+  weight: ['400', '500', '700'],
 });
 
 export const metadata: Metadata = {
@@ -58,7 +64,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${spaceMono.variable}`}
+      className={`${orbitron.variable} ${exo2.variable} ${jetbrainsMono.variable}`}
     >
       <body
         style={{

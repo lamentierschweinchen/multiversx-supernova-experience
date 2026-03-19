@@ -497,14 +497,12 @@ export default function HomePage() {
         />
       )}
 
-      {/* Tech HUD — constellation DNA panel, visible during save state */}
-      <div className="tech-hud">
-        <TechHUD
-          blockData={blockData}
-          constellationData={constellationData}
-          visible={gameState === 'save'}
-        />
-      </div>
+      {/* Tech HUD — constellation DNA annotations, visible during save state */}
+      <TechHUD
+        blockData={blockData}
+        constellationData={constellationData}
+        visible={gameState === 'save'}
+      />
 
       {/* Resolving indicator */}
       {gameState === 'resolving' && (

@@ -41,9 +41,9 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         pointerEvents: 'none',
-        paddingTop: '12vh',
+        paddingTop: '18vh',
         opacity,
         transition: 'opacity 0.5s ease',
       }}
@@ -51,28 +51,32 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
     >
       <p
         style={{
-          fontSize: 'clamp(0.875rem, 2vw, 1.125rem)',
+          fontSize: '16px',
           fontWeight: 500,
-          letterSpacing: '0.2em',
+          letterSpacing: '0.15em',
           textTransform: 'uppercase',
-          color: 'rgba(255, 255, 255, 0.55)',
+          color: 'rgba(255, 255, 255, 0.8)',
           fontFamily: 'var(--font-mono, monospace)',
           textAlign: 'center',
+          textShadow: '0 0 20px rgba(0, 229, 255, 0.5)',
+          margin: 0,
         }}
       >
-        Tap the Rhythm
+        Each Pulse Is a Heartbeat
       </p>
       <p
         style={{
-          marginTop: '0.5rem',
-          fontSize: 'clamp(0.6875rem, 1.4vw, 0.8125rem)',
-          color: 'rgba(255, 255, 255, 0.3)',
+          marginTop: '0.6rem',
+          fontSize: '12px',
+          color: 'rgba(255, 255, 255, 0.55)',
           textAlign: 'center',
-          fontWeight: 300,
-          letterSpacing: '0.04em',
+          fontWeight: 400,
+          letterSpacing: '0.15em',
+          fontFamily: 'var(--font-mono, monospace)',
+          textShadow: '0 0 12px rgba(0, 229, 255, 0.3)',
         }}
       >
-        match the pulse — each tap sends a transaction
+        tap when the ring reaches the star
       </p>
     </div>
   );

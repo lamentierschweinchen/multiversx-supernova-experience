@@ -57,13 +57,13 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
         MultiversX Battle of Nodes
       </p>
 
-      {/* Main title */}
+      {/* Main title — Orbitron display font */}
       <h1
-        className="gradient-text"
+        className="gradient-text font-display"
         style={{
           fontSize: 'clamp(3rem, 12vw, 8rem)',
-          fontWeight: 800,
-          letterSpacing: '-0.02em',
+          fontWeight: 900,
+          letterSpacing: '0.04em',
           lineHeight: 1,
           textAlign: 'center',
           userSelect: 'none',
@@ -72,7 +72,7 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
         SUPERNOVA
       </h1>
 
-      {/* Subtitle */}
+      {/* Subtitle — Exo 2 light */}
       <p
         style={{
           marginTop: '1.5rem',
@@ -82,6 +82,7 @@ export default function GateOverlay({ visible, onEnter }: GateOverlayProps) {
           textAlign: 'center',
           maxWidth: '28rem',
           lineHeight: 1.6,
+          fontFamily: 'var(--font-sans, sans-serif)',
         }}
       >
         Every 600 milliseconds, a new block.

@@ -186,10 +186,11 @@ export default function ConstellationPage() {
           }}
         >
           <h1
-            className="gradient-text"
+            className="gradient-text font-display"
             style={{
               fontSize: 'clamp(1.25rem, 3vw, 2rem)',
               fontWeight: 700,
+              letterSpacing: '0.03em',
             }}
           >
             Block #{blockData.nonce.toLocaleString('en-US')}

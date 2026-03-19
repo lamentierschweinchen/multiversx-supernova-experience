@@ -128,6 +128,21 @@ const orbFragmentShader = /* glsl */ `
   }
 `;
 
+// Beat ring — contracting ring that shows the rhythm visually (Guitar Hero style)
+interface BeatRing {
+  mesh: THREE.Mesh;
+  startTime: number;       // time when spawned
+  duration: number;        // total animation duration in seconds
+  startRadius: number;     // outer radius when spawned
+  endRadius: number;       // radius when it reaches the orb (hit zone)
+  active: boolean;
+}
+
+const BEAT_RING_POOL_SIZE = 8;
+const BEAT_RING_START_RADIUS = 6.0;   // spawn radius
+const BEAT_RING_END_RADIUS = 0.85;    // ~orb radius (hit zone)
+const BEAT_RING_DURATION = 0.6;       // 600ms — one beat interval
+
 // Shockwave ring visual (expanding torus)
 interface ShockwaveVisual {
   mesh: THREE.Mesh;
@@ -189,6 +204,9 @@ export class RhythmScene {
   // Visual feedback
   private flashTimer = 0;
   private flashColor = new THREE.Color(0xffffff);
+
+  // Beat ring pool (contracting rhythm indicators)
+  private beatRingPool: BeatRing[] = [];
 
   // Shockwave ring visuals
   private shockwaveVisuals: ShockwaveVisual[] = [];
@@ -279,6 +297,21 @@ export class RhythmScene {
 
     // Arrange particles in a sphere around the orb
     this.particles.arrangeSphere(15);
+
+    // ----- Beat Ring Pool -----
+    for (let i = 0; i < BEAT_RING_POOL_SIZE; i++) {
+      const ring = this.createBeatRing();
+      ring.visible = false;
+      this.scene.add(ring);
+      this.beatRingPool.push({
+        mesh: ring,
+        startTime: 0,
+        duration: BEAT_RING_DURATION,
+        startRadius: BEAT_RING_START_RADIUS,
+        endRadius: BEAT_RING_END_RADIUS,
+        active: false,
+      });
+    }
 
     // ----- Transaction Photon System -----
     // Points for the photon heads
@@ -397,6 +430,88 @@ export class RhythmScene {
     return texture;
   }
 
+  /** Create a beat ring mesh — thin torus used as rhythm indicator */
+  private createBeatRing(): THREE.Mesh {
+    // Thin torus: ring radius will be controlled via scale
+    const geo = new THREE.TorusGeometry(1, 0.02, 8, 96);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0.6, 0.95, 1.0), // cyan-white
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(this.orbMesh.position);
+    // Face the camera (XY plane, perpendicular to Z)
+    mesh.rotation.x = Math.PI * 0.5;
+    return mesh;
+  }
+
+  /** Spawn a beat ring from the pool */
+  private spawnBeatRing(): void {
+    // Find an inactive ring in the pool
+    let ring = this.beatRingPool.find(r => !r.active);
+    if (!ring) {
+      // All busy — recycle the oldest (first active one)
+      ring = this.beatRingPool[0];
+    }
+
+    ring.active = true;
+    ring.startTime = this.time;
+    ring.duration = BEAT_RING_DURATION;
+    ring.startRadius = BEAT_RING_START_RADIUS;
+    ring.endRadius = BEAT_RING_END_RADIUS;
+    ring.mesh.visible = true;
+    ring.mesh.position.copy(this.orbMesh.position);
+    const scale = ring.startRadius;
+    ring.mesh.scale.set(scale, scale, scale);
+    (ring.mesh.material as THREE.MeshBasicMaterial).opacity = 0.45;
+  }
+
+  /** Update all active beat rings */
+  private updateBeatRings(dt: number): void {
+    for (const ring of this.beatRingPool) {
+      if (!ring.active) continue;
+
+      const elapsed = this.time - ring.startTime;
+      const t = Math.min(elapsed / ring.duration, 1.0);
+
+      if (t >= 1.0) {
+        // Ring reached the orb — deactivate
+        ring.active = false;
+        ring.mesh.visible = false;
+        continue;
+      }
+
+      // Ease: use smoothStep for a natural feel
+      const eased = smoothStep(t);
+
+      // Interpolate radius from start to end
+      const radius = ring.startRadius + (ring.endRadius - ring.startRadius) * eased;
+      ring.mesh.scale.set(radius, radius, radius);
+      ring.mesh.position.copy(this.orbMesh.position);
+
+      // Opacity: visible in the middle, fades at start and as it reaches the orb
+      // Fade in during first 15%, full brightness middle, fade out last 20%
+      let opacity: number;
+      if (t < 0.15) {
+        opacity = t / 0.15;
+      } else if (t > 0.8) {
+        opacity = (1.0 - t) / 0.2;
+      } else {
+        opacity = 1.0;
+      }
+      opacity *= 0.45; // base max opacity (subtle, not overwhelming)
+
+      // Slight color shift: starts white-cyan, becomes more cyan as it contracts
+      const mat = ring.mesh.material as THREE.MeshBasicMaterial;
+      mat.opacity = opacity;
+      const whiteness = 1.0 - eased * 0.4;
+      mat.color.setRGB(0.5 + whiteness * 0.5, 0.85 + whiteness * 0.15, 1.0);
+    }
+  }
+
   /** Create a visible shockwave ring (expanding torus) */
   private createShockwaveRing(): THREE.Mesh {
     const geo = new THREE.TorusGeometry(0.5, 0.08, 8, 64);
@@ -420,6 +535,9 @@ export class RhythmScene {
 
     // Particle pulse
     this.particles.pulse(0.5);
+
+    // Spawn a beat ring — the contracting rhythm indicator
+    this.spawnBeatRing();
   }
 
   /** Register a tap with accuracy 0-1 */
@@ -706,6 +824,9 @@ export class RhythmScene {
       mat.uniforms.uIntensity.value = 0.2 + this.energy * 0.1;
     }
 
+    // Update beat rings (rhythm indicators)
+    this.updateBeatRings(clampedDt);
+
     // Update shockwave visuals
     this.updateShockwaveVisuals(clampedDt);
 
@@ -764,6 +885,12 @@ export class RhythmScene {
     this.particles.setDriftSpeed(0.12);
     this.particles.arrangeSphere(15);
 
+    // Reset beat rings
+    for (const ring of this.beatRingPool) {
+      ring.active = false;
+      ring.mesh.visible = false;
+    }
+
     // Clean up shockwave visuals
     for (const sw of this.shockwaveVisuals) {
       this.scene.remove(sw.mesh);
@@ -792,6 +919,11 @@ export class RhythmScene {
     for (const sw of this.shockwaveVisuals) {
       sw.mesh.geometry.dispose();
       (sw.mesh.material as THREE.Material).dispose();
+    }
+    // Dispose beat rings
+    for (const ring of this.beatRingPool) {
+      ring.mesh.geometry.dispose();
+      (ring.mesh.material as THREE.Material).dispose();
     }
     // Dispose photon system
     this.photonGeometry.dispose();

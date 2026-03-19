@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { BlockData, ConstellationData } from '@/lib/types';
 
 interface TechHUDProps {
@@ -9,7 +9,7 @@ interface TechHUDProps {
   visible: boolean;
 }
 
-function truncateHex(hex: string, chars: number = 10): string {
+function truncateHex(hex: string, chars: number = 8): string {
   if (hex.length <= chars * 2 + 3) return hex;
   return `${hex.slice(0, chars)}...${hex.slice(-chars)}`;
 }
@@ -39,172 +39,189 @@ function getCrossShardPaths(blockData: BlockData): number {
   return count;
 }
 
+interface Annotation {
+  id: string;
+  label: string;
+  sublabel?: string;
+  /** Position of the label (percentage of viewport) */
+  labelX: number;
+  labelY: number;
+  /** Position the line points toward (percentage of viewport) */
+  targetX: number;
+  targetY: number;
+  /** Line color */
+  color: string;
+  /** Text alignment */
+  align: 'left' | 'right' | 'center';
+}
+
 export default function TechHUD({
   blockData,
   constellationData,
   visible,
 }: TechHUDProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [show, setShow] = useState(false);
 
-  if (!visible) return null;
+  useEffect(() => {
+    if (visible) {
+      // 1-second delay before showing annotations
+      const timer = setTimeout(() => setShow(true), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setShow(false);
+    }
+  }, [visible]);
 
-  const shardCounts = blockData ? getValidatorCountsByShard(blockData) : new Map();
-  const crossShardPaths = blockData ? getCrossShardPaths(blockData) : 0;
+  if (!visible || !blockData) return null;
+
+  const shardCounts = getValidatorCountsByShard(blockData);
+  const crossShardPaths = getCrossShardPaths(blockData);
+
+  const shard0Count = shardCounts.get(0) ?? 0;
+  const shard1Count = shardCounts.get(1) ?? 0;
+  const shard2Count = shardCounts.get(2) ?? 0;
+
+  const annotations: Annotation[] = [
+    {
+      id: 'proposer',
+      label: 'PROPOSER',
+      sublabel: truncateHex(blockData.proposer, 8),
+      labelX: 8,
+      labelY: 12,
+      targetX: 48,
+      targetY: 45,
+      color: 'rgba(255, 255, 255, 0.5)',
+      align: 'left',
+    },
+    {
+      id: 'shard0',
+      label: `SHARD 0 \u00B7 ${shard0Count} VALIDATORS`,
+      labelX: 88,
+      labelY: 14,
+      targetX: 62,
+      targetY: 32,
+      color: 'rgba(0, 229, 255, 0.5)',
+      align: 'right',
+    },
+    {
+      id: 'shard1',
+      label: `SHARD 1 \u00B7 ${shard1Count} VALIDATORS`,
+      labelX: 90,
+      labelY: 48,
+      targetX: 62,
+      targetY: 52,
+      color: 'rgba(35, 196, 131, 0.5)',
+      align: 'right',
+    },
+    {
+      id: 'shard2',
+      label: `SHARD 2 \u00B7 ${shard2Count} VALIDATORS`,
+      labelX: 86,
+      labelY: 80,
+      targetX: 58,
+      targetY: 65,
+      color: 'rgba(124, 58, 237, 0.5)',
+      align: 'right',
+    },
+    {
+      id: 'crossshard',
+      label: `${crossShardPaths} CROSS-SHARD PATHS`,
+      labelX: 10,
+      labelY: 82,
+      targetX: 48,
+      targetY: 55,
+      color: 'rgba(167, 139, 250, 0.4)',
+      align: 'left',
+    },
+    {
+      id: 'blockinfo',
+      label: `BLOCK #${blockData.nonce.toLocaleString('en-US')} \u00B7 ${blockData.txCount} TXS \u00B7 ${formatGas(blockData.gasConsumed)} GAS`,
+      labelX: 50,
+      labelY: 92,
+      targetX: 50,
+      targetY: 50,
+      color: 'rgba(255, 255, 255, 0.3)',
+      align: 'center',
+    },
+  ];
 
   return (
     <div
       style={{
         position: 'fixed',
-        bottom: 'clamp(1rem, 3vw, 1.5rem)',
-        right: 'clamp(1rem, 3vw, 1.5rem)',
+        inset: 0,
         zIndex: 25,
-        pointerEvents: 'auto',
+        pointerEvents: 'none',
+        opacity: show ? 1 : 0,
+        transition: 'opacity 0.5s ease',
       }}
     >
-      {!expanded ? (
-        // Collapsed: small DNA button
-        <button
-          onClick={() => setExpanded(true)}
-          style={{
-            padding: '0.5rem 0.75rem',
-            borderRadius: '0.5rem',
-            border: '1px solid rgba(124, 58, 237, 0.4)',
-            background: 'rgba(10, 10, 20, 0.7)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            color: 'rgba(167, 139, 250, 0.8)',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'var(--font-geist-mono, monospace)',
-            letterSpacing: '0.05em',
-            transition: 'border-color 0.2s, color 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.7)';
-            e.currentTarget.style.color = 'rgba(167, 139, 250, 1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.4)';
-            e.currentTarget.style.color = 'rgba(167, 139, 250, 0.8)';
-          }}
-        >
-          &#9670; DNA
-        </button>
-      ) : (
-        // Expanded: dark translucent panel
+      {/* SVG overlay for connector lines */}
+      <svg
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+        }}
+      >
+        {annotations.map((a) => {
+          // Don't draw a line for the bottom-center block info
+          if (a.id === 'blockinfo') return null;
+          return (
+            <line
+              key={a.id}
+              x1={`${a.labelX}%`}
+              y1={`${a.labelY}%`}
+              x2={`${a.targetX}%`}
+              y2={`${a.targetY}%`}
+              stroke={a.color}
+              strokeWidth="1"
+              className="annotation-line-pulse"
+            />
+          );
+        })}
+      </svg>
+
+      {/* Text labels */}
+      {annotations.map((a) => (
         <div
+          key={a.id}
           style={{
-            width: 'clamp(16rem, 40vw, 22rem)',
-            background: 'rgba(10, 10, 20, 0.88)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(124, 58, 237, 0.3)',
-            borderRadius: '0.75rem',
-            padding: 'clamp(0.75rem, 2vw, 1.25rem)',
-            color: 'rgba(255, 255, 255, 0.75)',
-            fontSize: '0.6875rem',
-            lineHeight: 1.7,
+            position: 'absolute',
+            left: `${a.labelX}%`,
+            top: `${a.labelY}%`,
+            transform:
+              a.align === 'center'
+                ? 'translate(-50%, -50%)'
+                : a.align === 'right'
+                  ? 'translate(-100%, -50%)'
+                  : 'translate(0, -50%)',
+            fontFamily: 'var(--font-mono, monospace)',
+            fontSize: '10px',
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase' as const,
+            color: a.color.replace(/[\d.]+\)$/, '0.8)'),
+            textShadow: `0 0 8px ${a.color}`,
+            whiteSpace: 'nowrap',
+            lineHeight: 1.5,
           }}
         >
-          {/* Header with close button */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '0.75rem',
-            }}
-          >
-            <span
-              className="font-mono"
+          <div>{a.label}</div>
+          {a.sublabel && (
+            <div
               style={{
-                fontSize: '0.6875rem',
-                fontWeight: 700,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: 'rgba(167, 139, 250, 0.9)',
+                fontSize: '9px',
+                opacity: 0.6,
+                letterSpacing: '0.06em',
+                marginTop: '1px',
               }}
             >
-              &#9670; Constellation DNA
-            </span>
-            <button
-              onClick={() => setExpanded(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'rgba(255, 255, 255, 0.4)',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                padding: '0 0.25rem',
-                lineHeight: 1,
-              }}
-            >
-              &times;
-            </button>
-          </div>
-
-          {blockData ? (
-            <div className="font-mono" style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <Row label="Block Nonce" value={blockData.nonce.toLocaleString('en-US')} />
-              <Row label="Block Hash" value={truncateHex(blockData.hash, 10)} />
-              <Row label="Proposer BLS" value={truncateHex(blockData.proposer, 8)} />
-
-              {/* Validator count per shard */}
-              <div style={{ marginTop: '0.25rem' }}>
-                <span style={{ opacity: 0.5 }}>Validators/Shard: </span>
-                <span>
-                  {Array.from(shardCounts.entries())
-                    .sort(([a], [b]) => a - b)
-                    .map(([shard, count]) => {
-                      const label = shard === 4294967295 ? 'Meta' : `Shard ${shard}`;
-                      return `${label}: ${count}`;
-                    })
-                    .join(' \u00B7 ')}
-                </span>
-              </div>
-
-              <Row label="Cross-Shard Paths" value={crossShardPaths.toString()} />
-              <Row label="Gas Consumed" value={formatGas(blockData.gasConsumed)} />
-              <Row label="Transactions" value={blockData.txCount.toLocaleString('en-US')} />
-
-              {constellationData && (
-                <Row
-                  label="Constellation Seed"
-                  value={constellationData.blockNonce.toString()}
-                />
-              )}
-
-              <div
-                style={{
-                  marginTop: '0.5rem',
-                  paddingTop: '0.5rem',
-                  borderTop: '1px solid rgba(124, 58, 237, 0.15)',
-                  opacity: 0.4,
-                  fontSize: '0.625rem',
-                  fontStyle: 'italic',
-                }}
-              >
-                This data uniquely determines the visual pattern
-              </div>
-            </div>
-          ) : (
-            <div className="font-mono" style={{ opacity: 0.4 }}>
-              No block data available
+              {a.sublabel}
             </div>
           )}
         </div>
-      )}
-    </div>
-  );
-}
-
-/** Simple label: value row */
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span style={{ opacity: 0.5 }}>{label}: </span>
-      <span>{value}</span>
+      ))}
     </div>
   );
 }
