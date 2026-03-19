@@ -62,7 +62,7 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
           margin: 0,
         }}
       >
-        Each Pulse Is a Heartbeat
+        FEEL THE PULSE
       </p>
       <p
         style={{
@@ -76,7 +76,7 @@ export default function GameInstructions({ visible }: GameInstructionsProps) {
           textShadow: '0 0 12px rgba(0, 229, 255, 0.3)',
         }}
       >
-        tap when the ring reaches the star
+        tap when the star expands
       </p>
     </div>
   );

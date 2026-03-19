@@ -39,20 +39,17 @@ function getCrossShardPaths(blockData: BlockData): number {
   return count;
 }
 
-interface Annotation {
+interface HUDLabel {
   id: string;
-  label: string;
-  sublabel?: string;
-  /** Position of the label (percentage of viewport) */
-  labelX: number;
-  labelY: number;
-  /** Position the line points toward (percentage of viewport) */
-  targetX: number;
-  targetY: number;
-  /** Line color */
+  text: string;
+  subtext?: string;
   color: string;
-  /** Text alignment */
-  align: 'left' | 'right' | 'center';
+  dotColor: string;
+  /** Final position offset from center as vw/vh percentages */
+  finalX: string;
+  finalY: string;
+  /** Index for stagger delay */
+  index: number;
 }
 
 export default function TechHUD({
@@ -64,8 +61,8 @@ export default function TechHUD({
 
   useEffect(() => {
     if (visible) {
-      // 1-second delay before showing annotations
-      const timer = setTimeout(() => setShow(true), 1000);
+      // 1.5-second delay before fan-out animation begins
+      const timer = setTimeout(() => setShow(true), 1500);
       return () => clearTimeout(timer);
     } else {
       setShow(false);
@@ -81,67 +78,61 @@ export default function TechHUD({
   const shard1Count = shardCounts.get(1) ?? 0;
   const shard2Count = shardCounts.get(2) ?? 0;
 
-  const annotations: Annotation[] = [
+  const labels: HUDLabel[] = [
+    {
+      id: 'blockinfo',
+      text: `BLOCK #${blockData.nonce.toLocaleString('en-US')} \u00B7 ${blockData.txCount} TXS \u00B7 ${formatGas(blockData.gasConsumed)} GAS`,
+      color: 'rgba(255, 255, 255, 0.85)',
+      dotColor: 'rgba(255, 255, 255, 0.7)',
+      finalX: '0px',
+      finalY: '-38vh',
+      index: 0,
+    },
     {
       id: 'proposer',
-      label: 'PROPOSER',
-      sublabel: truncateHex(blockData.proposer, 8),
-      labelX: 8,
-      labelY: 12,
-      targetX: 48,
-      targetY: 45,
-      color: 'rgba(255, 255, 255, 0.5)',
-      align: 'left',
+      text: 'PROPOSER',
+      subtext: truncateHex(blockData.proposer, 8),
+      color: 'rgba(255, 240, 220, 0.8)',
+      dotColor: 'rgba(255, 240, 220, 0.7)',
+      finalX: '-36vw',
+      finalY: '-5vh',
+      index: 1,
     },
     {
       id: 'shard0',
-      label: `SHARD 0 \u00B7 ${shard0Count} VALIDATORS`,
-      labelX: 88,
-      labelY: 14,
-      targetX: 62,
-      targetY: 32,
-      color: 'rgba(0, 229, 255, 0.5)',
-      align: 'right',
+      text: `SHARD 0 \u00B7 ${shard0Count}`,
+      color: 'rgba(0, 229, 255, 0.85)',
+      dotColor: '#00e5ff',
+      finalX: '30vw',
+      finalY: '-22vh',
+      index: 2,
     },
     {
       id: 'shard1',
-      label: `SHARD 1 \u00B7 ${shard1Count} VALIDATORS`,
-      labelX: 90,
-      labelY: 48,
-      targetX: 62,
-      targetY: 52,
-      color: 'rgba(35, 196, 131, 0.5)',
-      align: 'right',
+      text: `SHARD 1 \u00B7 ${shard1Count}`,
+      color: 'rgba(35, 196, 131, 0.85)',
+      dotColor: '#23c483',
+      finalX: '36vw',
+      finalY: '2vh',
+      index: 3,
     },
     {
       id: 'shard2',
-      label: `SHARD 2 \u00B7 ${shard2Count} VALIDATORS`,
-      labelX: 86,
-      labelY: 80,
-      targetX: 58,
-      targetY: 65,
-      color: 'rgba(124, 58, 237, 0.5)',
-      align: 'right',
+      text: `SHARD 2 \u00B7 ${shard2Count}`,
+      color: 'rgba(124, 58, 237, 0.85)',
+      dotColor: '#7c3aed',
+      finalX: '30vw',
+      finalY: '24vh',
+      index: 4,
     },
     {
       id: 'crossshard',
-      label: `${crossShardPaths} CROSS-SHARD PATHS`,
-      labelX: 10,
-      labelY: 82,
-      targetX: 48,
-      targetY: 55,
-      color: 'rgba(167, 139, 250, 0.4)',
-      align: 'left',
-    },
-    {
-      id: 'blockinfo',
-      label: `BLOCK #${blockData.nonce.toLocaleString('en-US')} \u00B7 ${blockData.txCount} TXS \u00B7 ${formatGas(blockData.gasConsumed)} GAS`,
-      labelX: 50,
-      labelY: 92,
-      targetX: 50,
-      targetY: 50,
-      color: 'rgba(255, 255, 255, 0.3)',
-      align: 'center',
+      text: `CROSS-SHARD PATHS: ${crossShardPaths}`,
+      color: 'rgba(130, 160, 230, 0.75)',
+      dotColor: 'rgba(130, 160, 230, 0.7)',
+      finalX: '0px',
+      finalY: '38vh',
+      index: 5,
     },
   ];
 
@@ -152,76 +143,78 @@ export default function TechHUD({
         inset: 0,
         zIndex: 25,
         pointerEvents: 'none',
-        opacity: show ? 1 : 0,
-        transition: 'opacity 0.5s ease',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
-      {/* SVG overlay for connector lines */}
-      <svg
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-        }}
-      >
-        {annotations.map((a) => {
-          // Don't draw a line for the bottom-center block info
-          if (a.id === 'blockinfo') return null;
-          return (
-            <line
-              key={a.id}
-              x1={`${a.labelX}%`}
-              y1={`${a.labelY}%`}
-              x2={`${a.targetX}%`}
-              y2={`${a.targetY}%`}
-              stroke={a.color}
-              strokeWidth="1"
-              className="annotation-line-pulse"
-            />
-          );
-        })}
-      </svg>
-
-      {/* Text labels */}
-      {annotations.map((a) => (
-        <div
-          key={a.id}
-          style={{
-            position: 'absolute',
-            left: `${a.labelX}%`,
-            top: `${a.labelY}%`,
-            transform:
-              a.align === 'center'
-                ? 'translate(-50%, -50%)'
-                : a.align === 'right'
-                  ? 'translate(-100%, -50%)'
-                  : 'translate(0, -50%)',
-            fontFamily: 'var(--font-mono, monospace)',
-            fontSize: '10px',
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase' as const,
-            color: a.color.replace(/[\d.]+\)$/, '0.8)'),
-            textShadow: `0 0 8px ${a.color}`,
-            whiteSpace: 'nowrap',
-            lineHeight: 1.5,
-          }}
-        >
-          <div>{a.label}</div>
-          {a.sublabel && (
+      {labels.map((label) => {
+        const delay = label.index * 0.1;
+        return (
+          <div
+            key={label.id}
+            className="hud-fanout-label"
+            style={{
+              position: 'absolute',
+              // Start at center, animate to final position
+              transform: show
+                ? `translate(${label.finalX}, ${label.finalY})`
+                : 'translate(0px, 0px)',
+              opacity: show ? 1 : 0,
+              transition: `transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              willChange: 'transform, opacity',
+            }}
+          >
             <div
               style={{
-                fontSize: '9px',
-                opacity: 0.6,
-                letterSpacing: '0.06em',
-                marginTop: '1px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontFamily: 'var(--font-mono, monospace)',
+                fontSize: '10px',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase' as const,
+                color: label.color,
+                textShadow: `0 0 10px ${label.dotColor}44, 0 0 20px ${label.dotColor}22`,
+                whiteSpace: 'nowrap',
               }}
             >
-              {a.sublabel}
+              {/* Colored dot/pip */}
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '5px',
+                  height: '5px',
+                  borderRadius: '50%',
+                  backgroundColor: label.dotColor,
+                  boxShadow: `0 0 6px ${label.dotColor}88`,
+                  flexShrink: 0,
+                }}
+              />
+              <span>{label.text}</span>
             </div>
-          )}
-        </div>
-      ))}
+            {label.subtext && (
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono, monospace)',
+                  fontSize: '9px',
+                  opacity: 0.55,
+                  letterSpacing: '0.06em',
+                  color: label.color,
+                  textShadow: `0 0 8px ${label.dotColor}22`,
+                  paddingLeft: '11px',
+                }}
+              >
+                {label.subtext}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

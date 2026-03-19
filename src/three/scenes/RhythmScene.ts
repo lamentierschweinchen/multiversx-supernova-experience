@@ -8,6 +8,10 @@ import { nebulaVertexShader, nebulaFragmentShader } from '../shaders/nebula';
 // rim glow, inner pulsation. Shockwave rings on good taps.
 // Stars drift in zero-g. Energy accumulation intensifies scene.
 // Nebula backdrop adds depth.
+//
+// The orb PULSES visibly on the beat — the player taps when
+// it expands. No beat rings. The pulse is a smooth, predictable
+// expansion; the tap response is a sharp burst/flare.
 // ============================================================
 
 /** Easing: smooth step */
@@ -128,21 +132,6 @@ const orbFragmentShader = /* glsl */ `
   }
 `;
 
-// Beat ring — contracting ring that shows the rhythm visually (Guitar Hero style)
-interface BeatRing {
-  mesh: THREE.Mesh;
-  startTime: number;       // time when spawned
-  duration: number;        // total animation duration in seconds
-  startRadius: number;     // outer radius when spawned
-  endRadius: number;       // radius when it reaches the orb (hit zone)
-  active: boolean;
-}
-
-const BEAT_RING_POOL_SIZE = 8;
-const BEAT_RING_START_RADIUS = 6.0;   // spawn radius
-const BEAT_RING_END_RADIUS = 0.85;    // ~orb radius (hit zone)
-const BEAT_RING_DURATION = 0.6;       // 600ms — one beat interval
-
 // Shockwave ring visual (expanding torus)
 interface ShockwaveVisual {
   mesh: THREE.Mesh;
@@ -183,6 +172,15 @@ export class RhythmScene {
   private orbTargetScale = 1.0;
   private orbCurrentScale = 1.0;
 
+  // Pulse animation state — tracks the beat-driven expansion
+  private pulsePhase: 'idle' | 'expanding' | 'contracting' = 'idle';
+  private pulseElapsed = 0;
+  private readonly pulseExpandDuration = 0.1;   // 100ms expand
+  private readonly pulseContractDuration = 0.5;  // 500ms contract
+  private readonly pulsePeakScale = 1.4;         // expand to 1.4x on beat
+  private pulseEmissiveBoost = 0;                // 0-1 extra emissive from pulse
+  private pulseGlowBoost = 0;                    // extra glow sprite scale from pulse
+
   // Ambient
   private ambientLight: THREE.AmbientLight;
   private ambientBaseIntensity = 0.12;
@@ -204,9 +202,6 @@ export class RhythmScene {
   // Visual feedback
   private flashTimer = 0;
   private flashColor = new THREE.Color(0xffffff);
-
-  // Beat ring pool (contracting rhythm indicators)
-  private beatRingPool: BeatRing[] = [];
 
   // Shockwave ring visuals
   private shockwaveVisuals: ShockwaveVisual[] = [];
@@ -297,21 +292,6 @@ export class RhythmScene {
 
     // Arrange particles in a sphere around the orb
     this.particles.arrangeSphere(15);
-
-    // ----- Beat Ring Pool -----
-    for (let i = 0; i < BEAT_RING_POOL_SIZE; i++) {
-      const ring = this.createBeatRing();
-      ring.visible = false;
-      this.scene.add(ring);
-      this.beatRingPool.push({
-        mesh: ring,
-        startTime: 0,
-        duration: BEAT_RING_DURATION,
-        startRadius: BEAT_RING_START_RADIUS,
-        endRadius: BEAT_RING_END_RADIUS,
-        active: false,
-      });
-    }
 
     // ----- Transaction Photon System -----
     // Points for the photon heads
@@ -430,88 +410,6 @@ export class RhythmScene {
     return texture;
   }
 
-  /** Create a beat ring mesh — thin torus used as rhythm indicator */
-  private createBeatRing(): THREE.Mesh {
-    // Thin torus: ring radius will be controlled via scale
-    const geo = new THREE.TorusGeometry(1, 0.02, 8, 96);
-    const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0.6, 0.95, 1.0), // cyan-white
-      transparent: true,
-      opacity: 0.0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(this.orbMesh.position);
-    // Face the camera (XY plane, perpendicular to Z)
-    mesh.rotation.x = Math.PI * 0.5;
-    return mesh;
-  }
-
-  /** Spawn a beat ring from the pool */
-  private spawnBeatRing(): void {
-    // Find an inactive ring in the pool
-    let ring = this.beatRingPool.find(r => !r.active);
-    if (!ring) {
-      // All busy — recycle the oldest (first active one)
-      ring = this.beatRingPool[0];
-    }
-
-    ring.active = true;
-    ring.startTime = this.time;
-    ring.duration = BEAT_RING_DURATION;
-    ring.startRadius = BEAT_RING_START_RADIUS;
-    ring.endRadius = BEAT_RING_END_RADIUS;
-    ring.mesh.visible = true;
-    ring.mesh.position.copy(this.orbMesh.position);
-    const scale = ring.startRadius;
-    ring.mesh.scale.set(scale, scale, scale);
-    (ring.mesh.material as THREE.MeshBasicMaterial).opacity = 0.45;
-  }
-
-  /** Update all active beat rings */
-  private updateBeatRings(dt: number): void {
-    for (const ring of this.beatRingPool) {
-      if (!ring.active) continue;
-
-      const elapsed = this.time - ring.startTime;
-      const t = Math.min(elapsed / ring.duration, 1.0);
-
-      if (t >= 1.0) {
-        // Ring reached the orb — deactivate
-        ring.active = false;
-        ring.mesh.visible = false;
-        continue;
-      }
-
-      // Ease: use smoothStep for a natural feel
-      const eased = smoothStep(t);
-
-      // Interpolate radius from start to end
-      const radius = ring.startRadius + (ring.endRadius - ring.startRadius) * eased;
-      ring.mesh.scale.set(radius, radius, radius);
-      ring.mesh.position.copy(this.orbMesh.position);
-
-      // Opacity: visible in the middle, fades at start and as it reaches the orb
-      // Fade in during first 15%, full brightness middle, fade out last 20%
-      let opacity: number;
-      if (t < 0.15) {
-        opacity = t / 0.15;
-      } else if (t > 0.8) {
-        opacity = (1.0 - t) / 0.2;
-      } else {
-        opacity = 1.0;
-      }
-      opacity *= 0.45; // base max opacity (subtle, not overwhelming)
-
-      // Slight color shift: starts white-cyan, becomes more cyan as it contracts
-      const mat = ring.mesh.material as THREE.MeshBasicMaterial;
-      mat.opacity = opacity;
-      const whiteness = 1.0 - eased * 0.4;
-      mat.color.setRGB(0.5 + whiteness * 0.5, 0.85 + whiteness * 0.15, 1.0);
-    }
-  }
-
   /** Create a visible shockwave ring (expanding torus) */
   private createShockwaveRing(): THREE.Mesh {
     const geo = new THREE.TorusGeometry(0.5, 0.08, 8, 64);
@@ -528,16 +426,25 @@ export class RhythmScene {
   /** Called on each beat/pulse from the rhythm system */
   pulse(): void {
     this.pulseTimer = 0;
-    this.orbTargetScale = this.orbBaseScale * 1.12;
 
-    // Brief light pulse
-    this.orbLight.intensity = 6;
+    // Start the visible expansion animation — smooth, predictable rhythm cue
+    this.pulsePhase = 'expanding';
+    this.pulseElapsed = 0;
 
-    // Particle pulse
+    // Emissive boost on beat — spike to 1.0 then decay
+    this.pulseEmissiveBoost = 1.0;
+
+    // Glow sprite flash on beat
+    this.pulseGlowBoost = 3.0;
+
+    // Shader pulse uniform spike
+    this.orbMaterial.uniforms.uPulse.value = 0.7;
+
+    // Light intensity spike
+    this.orbLight.intensity = 8;
+
+    // Particle pulse (subtle)
     this.particles.pulse(0.5);
-
-    // Spawn a beat ring — the contracting rhythm indicator
-    this.spawnBeatRing();
   }
 
   /** Register a tap with accuracy 0-1 */
@@ -545,10 +452,17 @@ export class RhythmScene {
     const orbPos = this.orbMesh.position;
 
     if (accuracy > 0.8) {
-      // GREAT tap — big flare + shockwave
-      this.orbTargetScale = this.orbBaseScale * 1.5;
-      this.orbLight.intensity = 15;
+      // GREAT tap — sharp burst + shockwave (additive with any ongoing pulse)
+      // Sharp flare: override scale briefly to a high value
+      this.orbTargetScale = this.orbBaseScale * 1.6;
+      this.orbLight.intensity = 18;
       this.orbLight.color.set(0x88ccff);
+
+      // Shader pulse to max
+      this.orbMaterial.uniforms.uPulse.value = 1.0;
+
+      // Extra glow burst (additive to pulse glow)
+      this.pulseGlowBoost = Math.max(this.pulseGlowBoost, 5.0);
 
       // Particle burst — lots of particles, fast
       const burstColor = new THREE.Color(0x66bbff);
@@ -557,7 +471,7 @@ export class RhythmScene {
       // Intensify nearby stars
       this.particles.intensifyNear(orbPos.x, orbPos.y, orbPos.z, 10, 1.0);
 
-      // Big pulse
+      // Big particle pulse
       this.particles.pulse(1.5);
 
       // Emit shockwave ring (visible expanding torus)
@@ -576,9 +490,16 @@ export class RhythmScene {
       this.spawnTxPhoton(true);
 
     } else if (accuracy > 0.4) {
-      // OK tap — moderate response
-      this.orbTargetScale = this.orbBaseScale * 1.25;
-      this.orbLight.intensity = 8;
+      // OK tap — moderate sharp response
+      this.orbTargetScale = this.orbBaseScale * 1.35;
+      this.orbLight.intensity = 10;
+
+      this.orbMaterial.uniforms.uPulse.value = Math.max(
+        this.orbMaterial.uniforms.uPulse.value,
+        0.5,
+      );
+
+      this.pulseGlowBoost = Math.max(this.pulseGlowBoost, 3.0);
 
       const burstColor = new THREE.Color(0x4488cc);
       this.particles.emitBurst(orbPos.x, orbPos.y, orbPos.z, 30, burstColor, 5);
@@ -597,7 +518,7 @@ export class RhythmScene {
       this.spawnTxPhoton(false);
 
     } else {
-      // MISS — field darkens
+      // MISS — field darkens, dimmer tap effects
       this.particles.setDarkenFactor(0.8);
       this.orbTargetScale = this.orbBaseScale * 0.85;
       this.orbLight.intensity = 1;
@@ -607,8 +528,6 @@ export class RhythmScene {
 
       // Brief dark flash
       this.ambientLight.intensity = 0.02;
-
-      // No photon for misses (accuracy <= 0.3 normalized, which is <= 0.4 here)
     }
   }
 
@@ -752,6 +671,53 @@ export class RhythmScene {
     this.photonTrailGeometry.setDrawRange(0, this.photons.length * 2);
   }
 
+  /** Update the orb pulse expansion/contraction animation */
+  private updatePulseAnimation(dt: number): void {
+    if (this.pulsePhase === 'idle') return;
+
+    this.pulseElapsed += dt;
+
+    if (this.pulsePhase === 'expanding') {
+      // Expanding: scale from 1.0 to pulsePeakScale over expandDuration
+      const t = Math.min(this.pulseElapsed / this.pulseExpandDuration, 1.0);
+      // Ease-out for snappy expansion
+      const eased = 1.0 - (1.0 - t) * (1.0 - t);
+      const pulseScale = this.orbBaseScale + (this.pulsePeakScale - this.orbBaseScale) * eased;
+
+      // Apply pulse scale — this overrides the normal scale lerp for the orb
+      this.orbCurrentScale = Math.max(this.orbCurrentScale, pulseScale);
+      this.orbTargetScale = Math.max(this.orbTargetScale, pulseScale);
+
+      if (t >= 1.0) {
+        // Switch to contracting
+        this.pulsePhase = 'contracting';
+        this.pulseElapsed = 0;
+      }
+    } else if (this.pulsePhase === 'contracting') {
+      // Contracting: scale from pulsePeakScale back to 1.0 over contractDuration
+      const t = Math.min(this.pulseElapsed / this.pulseContractDuration, 1.0);
+      // Ease-out for gentle landing
+      const eased = 1.0 - (1.0 - t) * (1.0 - t);
+      const pulseScale = this.pulsePeakScale + (this.orbBaseScale - this.pulsePeakScale) * eased;
+
+      // Only apply if the pulse scale is still larger than what other effects want
+      if (pulseScale > this.orbBaseScale) {
+        this.orbTargetScale = Math.max(this.orbTargetScale, pulseScale);
+      }
+
+      if (t >= 1.0) {
+        this.pulsePhase = 'idle';
+      }
+    }
+
+    // Decay pulse emissive and glow boosts
+    this.pulseEmissiveBoost *= 1.0 - dt * 3.0; // decay over ~0.33s
+    if (this.pulseEmissiveBoost < 0.01) this.pulseEmissiveBoost = 0;
+
+    this.pulseGlowBoost *= 1.0 - dt * 4.0; // decay over ~0.25s
+    if (this.pulseGlowBoost < 0.01) this.pulseGlowBoost = 0;
+  }
+
   /** Update loop */
   update(dt: number): void {
     const clampedDt = Math.min(dt, 0.1);
@@ -761,35 +727,49 @@ export class RhythmScene {
     this.orbMaterial.uniforms.uTime.value = this.time;
     this.orbMaterial.uniforms.uEnergy.value = this.energy;
 
-    // Pulse uniform for orb shader
+    // Pulse uniform for orb shader — decay smoothly
     const pulseVal = this.orbMaterial.uniforms.uPulse.value;
-    this.orbMaterial.uniforms.uPulse.value = Math.max(0, pulseVal - clampedDt * 4);
+    this.orbMaterial.uniforms.uPulse.value = Math.max(0, pulseVal - clampedDt * 3);
+    // Add emissive boost from pulse
+    this.orbMaterial.uniforms.uPulse.value = Math.max(
+      this.orbMaterial.uniforms.uPulse.value,
+      this.pulseEmissiveBoost * 0.8,
+    );
 
-    // Subtle auto-pulse
+    // Subtle auto-pulse (very faint, keeps the orb alive between beats)
     this.pulseTimer += clampedDt;
     if (this.pulseTimer > this.pulseInterval) {
-      // Micro-pulse, barely visible
+      // Micro-pulse, barely visible — NOT the beat pulse
       this.orbTargetScale = this.orbBaseScale * 1.05;
-      this.orbMaterial.uniforms.uPulse.value = 0.15;
+      this.orbMaterial.uniforms.uPulse.value = Math.max(
+        this.orbMaterial.uniforms.uPulse.value,
+        0.15,
+      );
       this.pulseTimer = 0;
     }
+
+    // Update the beat-driven pulse animation (expansion/contraction)
+    this.updatePulseAnimation(clampedDt);
 
     // Orb scale lerp
     this.orbCurrentScale += (this.orbTargetScale - this.orbCurrentScale) * clampedDt * 8;
     this.orbTargetScale += (this.orbBaseScale - this.orbTargetScale) * clampedDt * 3;
     this.orbMesh.scale.setScalar(this.orbCurrentScale);
 
-    // Glow scale tracks orb but bigger
-    const glowSize = 5 * this.orbCurrentScale * (1 + this.energy * 0.3);
+    // Glow scale tracks orb but bigger, plus pulse boost
+    const glowSize = 5 * this.orbCurrentScale * (1 + this.energy * 0.3) + this.pulseGlowBoost;
     this.orbGlow.scale.setScalar(glowSize);
 
     // Corona breathes with energy
-    const coronaSize = 12 + this.energy * 4 + Math.sin(this.time * 0.6) * 1.5;
+    const coronaSize = 12 + this.energy * 4 + Math.sin(this.time * 0.6) * 1.5 + this.pulseGlowBoost * 0.5;
     this.orbCorona.scale.setScalar(coronaSize);
-    (this.orbCorona.material as THREE.SpriteMaterial).opacity = 0.3 + this.energy * 0.15;
+    (this.orbCorona.material as THREE.SpriteMaterial).opacity = 0.3 + this.energy * 0.15 + this.pulseEmissiveBoost * 0.2;
 
-    // Light intensity decays
-    this.orbLight.intensity += (4 + this.energy * 3 - this.orbLight.intensity) * clampedDt * 4;
+    // Light intensity decays — base + energy + pulse boost
+    const baseLightIntensity = 4 + this.energy * 3;
+    this.orbLight.intensity += (baseLightIntensity - this.orbLight.intensity) * clampedDt * 4;
+    // Add pulse spike contribution
+    this.orbLight.intensity += this.pulseEmissiveBoost * 4;
     this.orbLight.color.lerp(new THREE.Color(0x4488ff), clampedDt * 2);
 
     // Ambient recovers
@@ -823,9 +803,6 @@ export class RhythmScene {
       mat.uniforms.uTime.value = this.time;
       mat.uniforms.uIntensity.value = 0.2 + this.energy * 0.1;
     }
-
-    // Update beat rings (rhythm indicators)
-    this.updateBeatRings(clampedDt);
 
     // Update shockwave visuals
     this.updateShockwaveVisuals(clampedDt);
@@ -885,11 +862,11 @@ export class RhythmScene {
     this.particles.setDriftSpeed(0.12);
     this.particles.arrangeSphere(15);
 
-    // Reset beat rings
-    for (const ring of this.beatRingPool) {
-      ring.active = false;
-      ring.mesh.visible = false;
-    }
+    // Reset pulse animation state
+    this.pulsePhase = 'idle';
+    this.pulseElapsed = 0;
+    this.pulseEmissiveBoost = 0;
+    this.pulseGlowBoost = 0;
 
     // Clean up shockwave visuals
     for (const sw of this.shockwaveVisuals) {
@@ -919,11 +896,6 @@ export class RhythmScene {
     for (const sw of this.shockwaveVisuals) {
       sw.mesh.geometry.dispose();
       (sw.mesh.material as THREE.Material).dispose();
-    }
-    // Dispose beat rings
-    for (const ring of this.beatRingPool) {
-      ring.mesh.geometry.dispose();
-      (ring.mesh.material as THREE.Material).dispose();
     }
     // Dispose photon system
     this.photonGeometry.dispose();
